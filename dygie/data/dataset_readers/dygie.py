@@ -55,13 +55,16 @@ class DyGIEReader(DatasetReader):
 
     def _too_long(self, span):
         return span[1] - span[0] + 1 > self._max_span_width
+    def _invalid(self, span):
+        return span[0] > span[1]
 
     def _process_ner(self, span_tuples, sent):
         ner_labels = [""] * len(span_tuples)
 
         for span, label in sent.ner_dict.items():
-            if self._too_long(span):
+            if self._too_long(span) or self._invalid(span):
                 continue
+            
             ix = span_tuples.index(span)
             ner_labels[ix] = label
 
@@ -71,7 +74,7 @@ class DyGIEReader(DatasetReader):
         coref_labels = [-1] * len(span_tuples)
 
         for span, label in sent.cluster_dict.items():
-            if self._too_long(span):
+            if self._too_long(span) or self._invalid(span):
                 continue
             ix = span_tuples.index(span)
             coref_labels[ix] = label
@@ -85,7 +88,7 @@ class DyGIEReader(DatasetReader):
         # values.
         for (span1, span2), label in sent.relation_dict.items():
             # If either span is beyond the max span width, skip it.
-            if self._too_long(span1) or self._too_long(span2):
+            if self._too_long(span1) or self._too_long(span2) or self._invalid(span1) or self._invalid(span2):
                 continue
             ix1 = span_tuples.index(span1)
             ix2 = span_tuples.index(span2)
@@ -105,7 +108,7 @@ class DyGIEReader(DatasetReader):
         argument_indices = []
 
         for (trig_ix, arg_span), arg_label in sent.events.argument_dict.items():
-            if self._too_long(arg_span):
+            if self._too_long(arg_span) or self._invalid(arg_span):
                 continue
             arg_span_ix = span_tuples.index(arg_span)
             argument_indices.append((trig_ix, arg_span_ix))
