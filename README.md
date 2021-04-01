@@ -215,6 +215,23 @@ To reproduce the results in Table 1 requires training an ensemble model of 4 tri
 - Use these predicted triggers when making event argument predictions based on the event argument scores output by the model saved at `models/ace05_event`.
 
 If you need more details, email me.
+## Document-level IE datasets
+
+### DocRED
+
+- **Download the data**. From the top-level folder for this repo, enter `bash ./scripts/data/get_docred.sh`.
+- **Preprocess the data**. Enter `python scripts/data/docred/convert_docred2dygie.py --input_dir data/docred/raw-data/ --output_dir data/docred/processed-data/`.
+
+
+### ERE
+
+You need to download LDC2015E29, LDC2015E68, and LDC2015E78 to `data/ere/raw-data/`. To preprocess the data, from the top-level folder for this repo, run `bash .scripts/data/ere/process_ere.sh`. 
+
+
+### CDR
+
+Download the raw data using `bash ./scripts/data/get_cdr.sh`. We follow [this repo](https://github.com/fenchri/edge-oriented-graph/blob/master/data_processing/) to pre-process the data. You need to have ruby installed on your system. To preprocess CDR, enter `bash ./scripts/data/cdr/process_cdr.sh` 
+
 
 ## Evaluating a model
 

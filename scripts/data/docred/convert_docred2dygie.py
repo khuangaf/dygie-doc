@@ -96,7 +96,8 @@ def write_to_jsonl(process_documents, output_path):
 
 def process_document(input_document, split, idx):
     '''
-
+    Process a document in docred format. split and idx are only for constructing doc_key
+    
     '''
     res = {
         'doc_key': f'{split}-{idx}',
@@ -125,15 +126,7 @@ def process_splits(input_dir, output_dir):
             processed_documents.append(processed)
         
         output_path = os.path.join(output_dir, f'{split}.json')
-        write_to_jsonl(processed_documents, output_path)
-
-
-        
-
-        
-    
-
-
+        write_to_jsonl(processed_documents, output_path) 
 
 
 
