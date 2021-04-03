@@ -13,10 +13,10 @@ template.DyGIE {
     relation: 0.0,
     coref: 0.0,
     events: 0.0,
-    document_relations: 1.0,
+    document_relation: 1.0,
     document_events:0.0,
     event_coref: 0.0,
 
   },
-  target_task: "document_relations"
+  target_task: "document_relation"
 }

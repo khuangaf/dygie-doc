@@ -8,7 +8,7 @@
       'relation': '+MEAN__relation_f1',
       'coref': '+coref_f1',
       'events': '+MEAN__arg_class_f1',
-      'document_relations': '+MEAN__document_relations_f1',
+      'document_relation': '+MEAN__document_relation_f1',
       'document_events': '+MEAN__document_events_f1'
 
     },
@@ -98,7 +98,7 @@
         relation: {
           spans_per_word: 0.5,
         },
-        document_relations: {
+        document_relation: {
           spans_per_word: 0.5,
         },
         events: {

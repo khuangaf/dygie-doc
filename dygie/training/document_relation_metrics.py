@@ -27,18 +27,4 @@ class DocumentRelationMetrics(RelationMetrics):
             if ix in gold_relations and gold_relations[ix] == label:
                 self._total_matched += 1
 
-    @overrides
-    def get_metric(self, reset=False):
-        precision, recall, f1 = compute_f1(self._total_predicted, self._total_gold, self._total_matched)
-
-        # Reset counts if at end of epoch.
-        if reset:
-            self.reset()
-
-        return precision, recall, f1
-
-    @overrides
-    def reset(self):
-        self._total_gold = 0
-        self._total_predicted = 0
-        self._total_matched = 0
+    

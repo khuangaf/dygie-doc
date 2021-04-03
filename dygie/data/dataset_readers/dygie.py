@@ -234,7 +234,7 @@ class DyGIEReader(DatasetReader):
 
         if doc.document_relations is not None:
             document_relation_labels, relation_indices = self._process_document_relations(span_tuples, doc)
-            fields["relation_labels"] = AdjacencyField(
+            fields["document_relation_labels"] = AdjacencyField(
                 indices=relation_indices, sequence_field=span_field, labels=document_relation_labels,
                 label_namespace=f"{dataset}__document_relation_labels")
         return fields

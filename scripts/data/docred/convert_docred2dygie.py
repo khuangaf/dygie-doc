@@ -101,7 +101,8 @@ def process_document(input_document, split, idx):
     '''
     res = {
         'doc_key': f'{split}-{idx}',
-        'sentences': input_document['sents']
+        'sentences': input_document['sents'],
+        'dataset': 'docred'
     }
     # labels can be empty, use .get to work around
     res['document_relations'] = convert_doc_relations(input_document.get('labels',[]), input_document['vertexSet'], input_document['sents'])

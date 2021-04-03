@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional, Callable
+import numpy as np
 
 import torch
 import torch.nn.functional as F
@@ -10,17 +11,15 @@ from allennlp.models.model import Model
 from allennlp.nn import util, RegularizerApplicator
 from allennlp.modules import TimeDistributed
 
-from dygie.training.relation_metrics import RelationMetrics
+from dygie.training.document_relation_metrics import DocumentRelationMetrics
 from dygie.models.entity_beam_pruner import Pruner
 from dygie.data.dataset_readers import document
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-# TODO(dwadden) add tensor dimension comments.
-# TODO(dwadden) Different sentences should have different number of relation candidates depending on
-# length.
-class RelationExtractor(Model):
+
+class DocumentRelationExtractor(Model):
     """
     Relation extraction module of DyGIE model.
     """
@@ -35,8 +34,8 @@ class RelationExtractor(Model):
                  positive_label_weight: float = 1.0,
                  regularizer: Optional[RegularizerApplicator] = None) -> None:
         super().__init__(vocab, regularizer)
-        # make sure this does not take in document_relation_labels namespaces
-        self._namespaces = [entry for entry in vocab.get_namespaces() if "relation_labels" in entry and "document" not in entry]
+
+        self._namespaces = [entry for entry in vocab.get_namespaces() if "document_relation_labels" in entry]
         self._n_labels = {name: vocab.get_vocab_size(name) for name in self._namespaces}
 
         self._mention_pruners = torch.nn.ModuleDict()
@@ -58,7 +57,7 @@ class RelationExtractor(Model):
                 relation_feedforward.get_output_dim(), self._n_labels[namespace])
             self._relation_scorers[namespace] = relation_scorer
 
-            self._relation_metrics[namespace] = RelationMetrics()
+            self._relation_metrics[namespace] = DocumentRelationMetrics()
 
         self._spans_per_word = spans_per_word
         self._active_namespace = None
@@ -71,17 +70,40 @@ class RelationExtractor(Model):
                 span_mask,
                 span_embeddings,  # TODO(dwadden) add type.
                 sentence_lengths,
-                relation_labels: torch.IntTensor = None,
+                document_relation_labels: torch.IntTensor = None,
                 metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
         """
-        TODO(dwadden) Write documentation.
+        We assume the input to this module has consecutive spans that correspond to the same document.
+
         """
-        self._active_namespace = f"{metadata.dataset}__relation_labels"
+        self._active_namespace = f"{metadata.dataset}__document_relation_labels"
+
+        # create batch dimensions for labels bc the labels have been flattened
+        document_relation_labels = document_relation_labels.unsqueeze(0)
+
+        # flatten span embedding 
+        doc_span_embeddings = span_embeddings[torch.where(span_mask > 0)].view(-1, span_embeddings.size(-1)).unsqueeze(0)
+
+        # compute document lengths for determining how many mentions to keep
+        doc_length = sentence_lengths.sum().unsqueeze(0)
+        
+        # Original spans have offsets w.r.t. each sentence. Compute document-level spans w.r.t. document.
+        span_plus_sentence = spans.clone()
+        sentence_starts = np.cumsum(sentence_lengths.cpu())
+        sentence_starts = np.roll(sentence_starts, 1)
+        sentence_starts[0] = 0
+        sentence_starts = sentence_starts.tolist()
+        
+        for sent_ix, sentence_start in enumerate(sentence_starts):
+            span_plus_sentence[sent_ix] = span_plus_sentence[sent_ix] + sentence_start
+        doc_spans = span_plus_sentence[torch.where(span_mask > 0)].view(-1, 2).unsqueeze(0) #(1, num_doc_spans, 2)
+
+        doc_span_mask = torch.ones_like(doc_span_embeddings)[:,:,0] # all the spans are valid bc we have already filtered the invalid using torch.where(span_mask > 0)
 
         (top_span_embeddings, top_span_mention_scores,
          num_spans_to_keep, top_span_mask,
          top_span_indices, top_spans) = self._prune_spans(
-             spans, span_mask, span_embeddings, sentence_lengths)
+             doc_spans, doc_span_mask, doc_span_embeddings, doc_length)
 
         relation_scores = self._compute_relation_scores(
             self._compute_span_pair_embeddings(top_span_embeddings), top_span_mention_scores)
@@ -94,15 +116,15 @@ class RelationExtractor(Model):
         output_dict = {"predictions": predictions}
 
         # Evaluate loss and F1 if labels were provided.
-        if relation_labels is not None:
+        if document_relation_labels is not None:
             # Compute cross-entropy loss.
             gold_relations = self._get_pruned_gold_relations(
-                relation_labels, top_span_indices, top_span_mask)
+                document_relation_labels, top_span_indices, top_span_mask)
 
             cross_entropy = self._get_cross_entropy_loss(relation_scores, gold_relations)
 
             # Compute F1.
-            assert len(prediction_dict) == len(metadata)  # Make sure length of predictions is right.
+            # assert len(prediction_dict) == len(metadata)  # Make sure length of predictions is right.
             relation_metrics = self._relation_metrics[self._active_namespace]
             relation_metrics(prediction_dict, metadata)
 
@@ -115,7 +137,7 @@ class RelationExtractor(Model):
 
         # Keep different number of spans for each minibatch entry.
         num_spans_to_keep = torch.ceil(sentence_lengths.float() * self._spans_per_word).long()
-
+        
         pruner = self._mention_pruners[self._active_namespace]
         (top_span_embeddings, top_span_mask,
          top_span_indices, top_span_mention_scores, num_spans_kept) = pruner(
@@ -131,19 +153,22 @@ class RelationExtractor(Model):
         return top_span_embeddings, top_span_mention_scores, num_spans_to_keep, top_span_mask, top_span_indices, top_spans
 
     def predict(self, top_spans, relation_scores, num_spans_to_keep, metadata):
-        preds_dict = []
-        predictions = []
-        zipped = zip(top_spans, relation_scores, num_spans_to_keep, metadata)
+        '''
+        pred_dict_doc: a dictionary
+        predictions_doc: a list of relations
+        '''
+        # predictions = []
+        doc = metadata
+        
+        
+        pred_dict_doc, predictions_doc = self._predict_document(
+            top_spans[0], relation_scores[0], num_spans_to_keep[0], doc)
+            
+        # predictions.append(predictions_doc)
 
-        for top_spans_sent, relation_scores_sent, num_spans_sent, sentence in zipped:
-            pred_dict_sent, predictions_sent = self._predict_sentence(
-                top_spans_sent, relation_scores_sent, num_spans_sent, sentence)
-            preds_dict.append(pred_dict_sent)
-            predictions.append(predictions_sent)
+        return pred_dict_doc, predictions_doc
 
-        return preds_dict, predictions
-
-    def _predict_sentence(self, top_spans, relation_scores, num_spans_to_keep, sentence):
+    def _predict_document(self, top_spans, relation_scores, num_spans_to_keep, doc):
         keep = num_spans_to_keep.item()
         top_spans = [tuple(x) for x in top_spans.tolist()]
 
@@ -172,7 +197,7 @@ class RelationExtractor(Model):
             label_name = self.vocab.get_token_from_index(label, namespace=self._active_namespace)
             res_dict[(span_1, span_2)] = label_name
             list_entry = (span_1[0], span_1[1], span_2[0], span_2[1], label_name, raw_score, softmax_score)
-            predictions.append(document.PredictedRelation(list_entry, sentence, sentence_offsets=True))
+            predictions.append(document.PredictedDocumentRelation(list_entry, doc.sentences))
 
         return res_dict, predictions
 
@@ -184,6 +209,7 @@ class RelationExtractor(Model):
         for namespace, metrics in self._relation_metrics.items():
             precision, recall, f1 = metrics.get_metric(reset)
             prefix = namespace.replace("_labels", "")
+            # prefix = 'document_' + prefix
             to_update = {f"{prefix}_precision": precision,
                          f"{prefix}_recall": recall,
                          f"{prefix}_f1": f1}
@@ -192,9 +218,9 @@ class RelationExtractor(Model):
         res_avg = {}
         for name in ["precision", "recall", "f1"]:
             values = [res[key] for key in res if name in key]
-            res_avg[f"MEAN__relation_{name}"] = sum(values) / len(values) if values else 0
+            res_avg[f"MEAN__document_relation_{name}"] = sum(values) / len(values) if values else 0
             res.update(res_avg)
-        
+
         return res
 
     @staticmethod
