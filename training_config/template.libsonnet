@@ -7,7 +7,10 @@
       'ner': '+MEAN__ner_f1',
       'relation': '+MEAN__relation_f1',
       'coref': '+coref_f1',
-      'events': '+MEAN__arg_class_f1'
+      'events': '+MEAN__arg_class_f1',
+      'document_relations': '+MEAN__document_relations_f1',
+      'document_events': '+MEAN__document_events_f1'
+
     },
 
     ////////////////////
@@ -93,6 +96,9 @@
         },
         ner: {},
         relation: {
+          spans_per_word: 0.5,
+        },
+        document_relations: {
           spans_per_word: 0.5,
         },
         events: {

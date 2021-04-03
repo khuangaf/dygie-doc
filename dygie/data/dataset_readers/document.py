@@ -93,7 +93,8 @@ class Dataset:
 
 class Document:
     def __init__(self, doc_key, dataset, sentences,
-                 clusters=None, predicted_clusters=None, event_clusters=None, predicted_event_clusters=None, weight=None):
+                 clusters=None, predicted_clusters=None, event_clusters=None, predicted_event_clusters=None,
+                 document_relations=None, predicted_document_relations=None, document_events=None, predicted_document_events=None, weight=None):
         self.doc_key = doc_key
         self.dataset = dataset
         self.sentences = sentences
@@ -101,7 +102,23 @@ class Document:
         self.predicted_clusters = predicted_clusters
         self.event_clusters = event_clusters
         self.predicted_event_clusters = predicted_event_clusters
+        self.document_relations = document_relations
+        self.predicted_document_relations = predicted_document_relations
+        self.document_events = document_events
+        self.predicted_document_events = predicted_document_events
         self.weight = weight
+        
+        # build document relations dictionary
+        if document_relations is not None:
+            document_relation_dict = {}
+            for rel in document_relations:
+                key = (rel.pair[0].span_doc, rel.pair[1].span_doc)
+                document_relation_dict[key] = rel.label
+
+            self.document_relation_dict = document_relation_dict
+        else:
+
+            self.document_relation_dict = None
 
     @classmethod
     def from_json(cls, js):
@@ -110,7 +127,8 @@ class Document:
         doc_key = js["doc_key"]
         dataset = js.get("dataset")
         entries = fields_to_batches(js, ["doc_key", "dataset", "clusters", "predicted_clusters",
-                                         "weight", "event_clusters","predicted_event_clusters"])
+                                         "weight", "event_clusters","predicted_event_clusters", 
+                                         "document_relations", "predicted_document_relations", "document_events","predicted_document_events"])
         sentence_lengths = [len(entry["sentences"]) for entry in entries]
         sentence_starts = np.cumsum(sentence_lengths)
         sentence_starts = np.roll(sentence_starts, 1)
@@ -148,6 +166,24 @@ class Document:
         else:
             predicted_event_clusters = None
 
+        if "document_relations" in js:
+            document_relations = [DocumentRelation(this_relation, sentences) for this_relation in js['document_relations'] ]
+        else:
+            document_relations = None
+            
+        if "predicted_document_relations" in js:
+            predicted_document_relations = [PredictedDocumentRelation(this_relation, sentences) for this_relation in js['predicted_document_relations'] ]
+        else:
+            predicted_document_relations = None
+        if "document_events" in js:
+            document_events = DocumentEvents(js['document_events'], sentences, sentence_starts)
+        else:
+            document_events = None
+        if "predicted_document_events" in js:
+            predicted_document_events = PredictedDocumentEvents(js['predicted_document_events'], sentences, sentence_starts)
+        else:
+            predicted_document_events = None
+        
         # Update the sentences with coreference cluster labels.
         sentences = update_sentences_with_clusters(sentences, clusters)
         sentences = update_sentences_with_event_clusters(sentences, event_clusters)
@@ -155,7 +191,7 @@ class Document:
         weight = js.get("weight", None)
 
         return cls(doc_key, dataset, sentences, clusters, predicted_clusters, event_clusters,
-                   predicted_event_clusters, weight)
+                   predicted_event_clusters, document_relations, predicted_document_relations, weight=weight)
 
     @staticmethod
     def _check_fields(js):
@@ -417,7 +453,6 @@ class Span:
     def __hash__(self):
         tup = self.span_sent + (self.sentence_text,)
         return hash(tup)
-
 
 class Token:
     def __init__(self, ix, sentence, sentence_offsets=False):
@@ -712,3 +747,91 @@ class ClusterMember:
 
     def __repr__(self):
         return f"<{self.sentence.sentence_ix}> " + self.span.__repr__()
+
+
+class DocumentSpan:
+    def __init__(self, start, end, sentences):
+        
+        self.sentences = sentences
+        self.start = start
+        self.end = end
+        
+        self.document_text = [token for sent in sentences for token in sent.text]
+        
+        # Need to store the sentence text to make span objects hashable.
+        self.document_text_ = " ".join(self.document_text)
+
+    @property
+    def span(self):
+        return (self.start, self.end)
+
+    @property
+    def span_doc(self):
+        return self.span
+
+    @property
+    def text(self):
+        return self.document_text[self.start:self.end + 1]
+
+    def __repr__(self):
+        return str((self.start, self.end, self.text))
+
+    def __eq__(self, other):
+        return (self.span == other.span and
+                self.sentences == other.sentences)
+
+    def __hash__(self):
+        tup = self.span + (self.document_text_,)
+        return hash(tup)
+
+
+class DocumentToken:
+    '''
+    Document-level token for document-level events
+    '''
+    def __init__(self, ix, sentences):
+        self.sentences = sentences
+        self.document_text = [token for sent in sentences for token in sent.text]
+
+        self.ix_doc = ix #if sentence_offsets else ix - sentence.sentence_start
+
+
+    @property
+    def text(self):
+        return self.document_text[self.ix_doc]
+
+    def __repr__(self):
+        return str((self.ix_doc, self.text)) 
+
+class DocumentRelation:
+    def __init__(self, relation, sentences):
+        start1, end1 = relation[0], relation[1]
+        start2, end2 = relation[2], relation[3]
+        label = relation[4]
+        span1 = DocumentSpan(start1, end1, sentences)
+        span2 = DocumentSpan(start2, end2, sentences)
+        self.pair = (span1, span2)
+        self.label = label
+
+    def __repr__(self):
+        return f"{self.pair[0].__repr__()}, {self.pair[1].__repr__()}: {self.label}"
+
+    def __eq__(self, other):
+        return (self.pair == other.pair) and (self.label == other.label)
+
+    def to_json(self):
+        return list(self.pair[0].span_doc) + list(self.pair[1].span_doc) + [self.label]
+
+
+class PredictedDocumentRelation(DocumentRelation):
+    def __init__(self, relation, sentence):
+        "Input format: [start_1, end_1, start_2, end_2, label, raw_score, softmax_score]."
+        super().__init__(relation, sentence)
+        self.raw_score = relation[5]
+        self.softmax_score = relation[6]
+
+    def __repr__(self):
+        return super().__repr__() + f" with confidence {self.softmax_score:0.4f}"
+
+    def to_json(self):
+        return super().to_json() + [format_float(self.raw_score), format_float(self.softmax_score)]        

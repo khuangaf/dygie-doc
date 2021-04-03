@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple, DefaultDict, Set, Union
 import json
 import pickle as pkl
 import warnings
+import numpy as np
 
 from overrides import overrides
 
@@ -116,6 +117,23 @@ class DyGIEReader(DatasetReader):
 
         return trigger_labels, arguments, argument_indices
 
+    def _process_document_relations(self, span_tuples, doc):
+        relations = []
+        relation_indices = []
+
+        # Loop over the gold spans. Look up their indices in the list of span tuples and store
+        # values.
+        for (span1, span2), label in doc.document_relation_dict.items():
+            # If either span is beyond the max span width, skip it.
+            if self._too_long(span1) or self._too_long(span2) or self._invalid(span1) or self._invalid(span2):
+                continue
+            ix1 = span_tuples.index(span1)
+            ix2 = span_tuples.index(span2)
+            relation_indices.append((ix1, ix2))
+            relations.append(label)
+
+        return relations, relation_indices
+    
     def _process_sentence(self, sent: Sentence, dataset: str):
         # Get the sentence text and define the `text_field`.
         sentence_text = [self._normalize_word(word) for word in sent.text]
@@ -183,6 +201,43 @@ class DyGIEReader(DatasetReader):
 
         return fields
 
+    def _process_doc_fields(self, doc, fields):
+        # Flatten the list of sentences into a document of tokens. This maybe helpful for using longformers.
+        document_text = [self._normalize_word(word) for sent in doc.sentences for word in sent.text]
+        text_field = TextField([Token(word) for word in document_text], self._token_indexers)
+        dataset= doc.dataset
+        sentence_lengths = [len(sentence) for sentence in doc.sentences]
+        sentence_starts = np.cumsum(sentence_lengths)
+        sentence_starts = np.roll(sentence_starts, 1)
+        sentence_starts[0] = 0
+        sentence_starts = sentence_starts.tolist()
+        # Enumerate spans. Make span_tuples have offset w.r.t. doc.
+        spans = []
+        for sent, sentence_start in zip(doc.sentences, sentence_starts):
+        
+            sentence_text = [self._normalize_word(word) for word in sent.text]
+            for start, end in enumerate_spans(sentence_text, max_span_width=self._max_span_width):
+                spans.append(SpanField(start + sentence_start, end + sentence_start, text_field))
+        span_field = ListField(spans)
+        span_tuples = [(span.span_start, span.span_end) for span in spans]
+        
+        fields['doc_text'] = ListField([text_field])
+        
+        if doc.document_events is not None:
+            # build event fields
+            document_trigger_labels, document_argument_labels, argument_indices = self._process_document_events(span_tuples, doc)
+            fields["document_trigger_labels"] = SequenceLabelField(
+                document_trigger_labels, text_field, label_namespace=f"{dataset}__document_trigger_labels")
+            fields["document_argument_labels"] = AdjacencyFieldAssym(
+                indices=argument_indices, row_field=text_field, col_field=span_field,
+                labels=document_argument_labels, label_namespace=f"{dataset}__document_argument_labels")
+
+        if doc.document_relations is not None:
+            document_relation_labels, relation_indices = self._process_document_relations(span_tuples, doc)
+            fields["relation_labels"] = AdjacencyField(
+                indices=relation_indices, sequence_field=span_field, labels=document_relation_labels,
+                label_namespace=f"{dataset}__document_relation_labels")
+        return fields
     @overrides
     def text_to_instance(self, doc_text: Dict[str, Any]):
         """
@@ -198,6 +253,8 @@ class DyGIEReader(DatasetReader):
             warnings.warn(msg)
 
         fields = self._process_sentence_fields(doc)
+
+        fields = self._process_doc_fields(doc, fields)
         fields["metadata"] = MetadataField(doc)
 
         return Instance(fields)

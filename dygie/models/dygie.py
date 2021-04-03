@@ -18,6 +18,7 @@ from dygie.models.coref import CorefResolver
 from dygie.models.ner import NERTagger
 from dygie.models.relation import RelationExtractor
 from dygie.models.events import EventExtractor
+from dygie.models.document_relations import DocumentRelationExtractor
 from dygie.data.dataset_readers import document
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -129,6 +130,12 @@ class DyGIE(Model):
                                                   feature_size=feature_size,
                                                   params=modules.pop("events"))
 
+        self._document_relations = DocumentRelationExtractor.from_params(vocab=vocab,
+                                                  make_feedforward=make_feedforward,
+                                                  span_emb_dim=span_emb_dim,
+                                                  feature_size=feature_size,
+                                                  params=modules.pop("document_relations"))
+
         ####################
 
         # Initialize text embedder and all submodules
@@ -150,7 +157,10 @@ class DyGIE(Model):
                          ["relation_precision", "relation_recall", "relation_f1"]],
             "coref": ["coref_precision", "coref_recall", "coref_f1", "coref_mention_recall"],
             "events": [f"MEAN__{name}" for name in
-                       ["trig_class_f1", "arg_class_f1"]]}
+                       ["trig_class_f1", "arg_class_f1"]],
+            "document_relations": [f"MEAN__{name}" for name in
+                         [ "document_relations_f1"]],}
+        
         if target_task not in lookup:
             raise ValueError(f"Invalied value {target_task} has been given as the target task.")
         return lookup[target_task]
@@ -169,7 +179,10 @@ class DyGIE(Model):
                 coref_labels=None,
                 relation_labels=None,
                 trigger_labels=None,
-                argument_labels=None):
+                argument_labels=None,
+                document_relation_labels=None,
+                doc_text=None, # this is for longformer
+                ):
         """
         TODO(dwadden) change this.
         """
@@ -221,6 +234,7 @@ class DyGIE(Model):
         output_ner = {'loss': 0}
         output_relation = {'loss': 0}
         output_events = {'loss': 0}
+        output_document_relations = {'loss': 0} 
 
         # Prune and compute span representations for coreference module
         if self._loss_weights["coref"] > 0 or self._coref.coref_prop > 0:
@@ -252,12 +266,17 @@ class DyGIE(Model):
                 sentence_lengths, trigger_labels, argument_labels,
                 ner_labels, metadata)
 
+        if self._loss_weights['relation'] > 0:
+            output_document_relations = self._document_relations(
+                spans, span_mask, span_embeddings, sentence_lengths, document_relation_labels, metadata)
+
         # Use `get` since there are some cases where the output dict won't have a loss - for
         # instance, when doing prediction.
         loss = (self._loss_weights['coref'] * output_coref.get("loss", 0) +
                 self._loss_weights['ner'] * output_ner.get("loss", 0) +
                 self._loss_weights['relation'] * output_relation.get("loss", 0) +
-                self._loss_weights['events'] * output_events.get("loss", 0))
+                self._loss_weights['events'] * output_events.get("loss", 0) +
+                self._loss_weights['document_relations'] * output_document_relations.get("loss", 0))
 
         # Multiply the loss by the weight multiplier for this document.
         weight = metadata.weight if metadata.weight is not None else 1.0
@@ -330,6 +349,10 @@ class DyGIE(Model):
         if self._loss_weights["events"] > 0:
             for predictions, sentence in zip(output_dict["events"]["predictions"], doc):
                 sentence.predicted_events = predictions
+        
+
+        if self._loss_weights["document_relations"] > 0:
+            doc.predicted_document_relations = output_dict["document_relations"]["predictions"]
 
         return doc
 
@@ -342,16 +365,18 @@ class DyGIE(Model):
         metrics_ner = self._ner.get_metrics(reset=reset)
         metrics_relation = self._relation.get_metrics(reset=reset)
         metrics_events = self._events.get_metrics(reset=reset)
-
+        metrics_document_relations = self._document_relations.get_metrics(reset=reset)
         # Make sure that there aren't any conflicting names.
         metric_names = (list(metrics_coref.keys()) + list(metrics_ner.keys()) +
-                        list(metrics_relation.keys()) + list(metrics_events.keys()))
+                        list(metrics_relation.keys()) + list(metrics_events.keys()) +
+                        list(metrics_document_relations.keys()) )
         assert len(set(metric_names)) == len(metric_names)
         all_metrics = dict(list(metrics_coref.items()) +
                            list(metrics_ner.items()) +
                            list(metrics_relation.items()) +
-                           list(metrics_events.items()))
-
+                           list(metrics_events.items()) +
+                           list(metrics_document_relations.items()))
+        
         # If no list of desired metrics given, display them all.
         if self._display_metrics is None:
             return all_metrics

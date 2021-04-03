@@ -104,7 +104,7 @@ def process_document(input_document, split, idx):
         'sentences': input_document['sents']
     }
     # labels can be empty, use .get to work around
-    res['doc_relations'] = convert_doc_relations(input_document.get('labels',[]), input_document['vertexSet'], input_document['sents'])
+    res['document_relations'] = convert_doc_relations(input_document.get('labels',[]), input_document['vertexSet'], input_document['sents'])
     res['ner'] = convert_ner(input_document['vertexSet'], input_document['sents'])
     res['clusters'] = convert_coreference(input_document['vertexSet'], input_document['sents'])
 
