@@ -102,7 +102,8 @@ def process_document(input_document, split, idx):
     res = {
         'doc_key': f'{split}-{idx}',
         'sentences': input_document['sents'],
-        'dataset': 'docred'
+        'dataset': 'docred',
+        '_split': split,
     }
     # labels can be empty, use .get to work around
     res['document_relations'] = convert_doc_relations(input_document.get('labels',[]), input_document['vertexSet'], input_document['sents'])
@@ -113,7 +114,7 @@ def process_document(input_document, split, idx):
 
 def process_splits(input_dir, output_dir):
     
-    for split in ['train','dev','test']:
+    for split in ['train','dev']:
 
         input_path = os.path.join(input_dir, f'{split}.json')
 

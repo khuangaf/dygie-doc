@@ -26,4 +26,3 @@ do
     rm ./tmp
 done
 
-python scripts/data/docred/convert_docred2dygie.py --input_dir $raw_dir --output_dir $processed_dir

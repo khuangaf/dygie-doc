@@ -95,7 +95,7 @@ def process_coref(doc: Dict[str, Any]) -> List[List]:
             res.append([scirex_span2dygie_span(span) for span in cluster])
     return res
 
-def process_document(doc: Dict[str, Any]) -> Dict[str, Any]:
+def process_document(doc: Dict[str, Any], split: str) -> Dict[str, Any]:
 
     document_relations = generate_binary_relations(doc)
     coref = process_coref(doc)
@@ -103,6 +103,7 @@ def process_document(doc: Dict[str, Any]) -> Dict[str, Any]:
     sentences = process_sentences(doc)
     return {
         'doc_key': doc['doc_id'],
+        '_split': split,
         'dataset': 'scirex',
         'sentences': sentences,
         'ner': ner,
@@ -111,14 +112,14 @@ def process_document(doc: Dict[str, Any]) -> Dict[str, Any]:
         
     }
 
-def process_file(input_path: str, output_path: str):
+def process_file(input_path: str, output_path: str, split: str):
 
     with open(input_path, 'r') as f:
         input_data = [json.loads(l) for l in f.readlines()]
     
     processed_data = []
     for input_doc in input_data:
-        processed_data.append(process_document(input_doc))
+        processed_data.append(process_document(input_doc, split))
     
     with open(output_path, 'w') as f:
         for processed_doc in processed_data:
@@ -129,6 +130,7 @@ if __name__ == '__main__':
     
     p.add_argument('--input_path', type=str) 
     p.add_argument('--output_path',type=str)
+    p.add_argument('--split',type=str)
     args = p.parse_args()
 
-    process_file(args.input_path, args.output_path)
+    process_file(args.input_path, args.output_path, args.split)

@@ -94,7 +94,7 @@ class Dataset:
 class Document:
     def __init__(self, doc_key, dataset, sentences,
                  clusters=None, predicted_clusters=None, event_clusters=None, predicted_event_clusters=None,
-                 document_relations=None, predicted_document_relations=None, document_events=None, predicted_document_events=None, weight=None):
+                 document_relations=None, predicted_document_relations=None, document_events=None, predicted_document_events=None, weight=None, sentence_starts=None):
         self.doc_key = doc_key
         self.dataset = dataset
         self.sentences = sentences
@@ -107,13 +107,22 @@ class Document:
         self.document_events = document_events
         self.predicted_document_events = predicted_document_events
         self.weight = weight
+        self.sentence_starts = sentence_starts
         
         # build document relations dictionary
         if document_relations is not None:
             document_relation_dict = {}
             for rel in document_relations:
-                key = (rel.pair[0].span_doc, rel.pair[1].span_doc)
-                document_relation_dict[key] = rel.label
+                span1, span2 = (rel.pair[0].span_doc, rel.pair[1].span_doc)
+                try:
+                    n_tokens = sum([len(x) for x in sentences])
+                    # make sure no span is crossing sentences
+                    get_sentence_of_span(span1, sentence_starts, n_tokens)
+                    get_sentence_of_span(span2, sentence_starts, n_tokens)
+                    key = (span1, span2)
+                    document_relation_dict[key] = rel.label
+                except SpanCrossesSentencesError:
+                    print(f"Document {self.doc_key} has a document relation crossing sentences. Skipping...")
 
             self.document_relation_dict = document_relation_dict
         else:
@@ -128,12 +137,15 @@ class Document:
         dataset = js.get("dataset")
         entries = fields_to_batches(js, ["doc_key", "dataset", "clusters", "predicted_clusters",
                                          "weight", "event_clusters","predicted_event_clusters", 
-                                         "document_relations", "predicted_document_relations", "document_events","predicted_document_events"])
+                                         "document_relations", "predicted_document_relations", "document_events","predicted_document_events","_split"])
         sentence_lengths = [len(entry["sentences"]) for entry in entries]
-        sentence_starts = np.cumsum(sentence_lengths)
-        sentence_starts = np.roll(sentence_starts, 1)
-        sentence_starts[0] = 0
-        sentence_starts = sentence_starts.tolist()
+        if '_sentence_starts' in js:
+            sentence_starts = js['_sentence_starts']
+        else:
+            sentence_starts = np.cumsum(sentence_lengths)
+            sentence_starts = np.roll(sentence_starts, 1)
+            sentence_starts[0] = 0
+            sentence_starts = sentence_starts.tolist()
         sentences = [Sentence(entry, sentence_start, sentence_ix)
                      for sentence_ix, (entry, sentence_start)
                      in enumerate(zip(entries, sentence_starts))]
@@ -191,7 +203,7 @@ class Document:
         weight = js.get("weight", None)
 
         return cls(doc_key, dataset, sentences, clusters, predicted_clusters, event_clusters,
-                   predicted_event_clusters, document_relations, predicted_document_relations, weight=weight)
+                   predicted_event_clusters, document_relations, predicted_document_relations, weight=weight, sentence_starts=sentence_starts)
 
     @staticmethod
     def _check_fields(js):
