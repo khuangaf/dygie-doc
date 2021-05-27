@@ -22,11 +22,13 @@ def convert(doc, is_gold):
     cluster_dict = {}
     span2cluster : Dict[Tuple[int], str]= {} 
     cluster_relation_count: Dict[Tuple(str), Dict[str, int]] = defaultdict(Counter)
-    
+    entity_name_dict = {}
     # gather cluster
     for cluster in doc[f'{prefix}clusters']:
         longest_mention_span = sorted(cluster, key=lambda x:x[1]-x[0], reverse=True)[0]
-        entity_key = ' '.join(doc_tokens[longest_mention_span[0]:longest_mention_span[1]+1])
+        # entity_key = ' '.join(doc_tokens[longest_mention_span[0]:longest_mention_span[1]+1])
+        entity_key = str(len(cluster_dict))
+        entity_name_dict[entity_key] = ' '.join(doc_tokens[longest_mention_span[0]:longest_mention_span[1]+1])
         cluster_dict[entity_key] = cluster
         for span in cluster:
             span2cluster[tuple(span)] = entity_key
@@ -35,7 +37,9 @@ def convert(doc, is_gold):
     for entities in doc[f'{prefix}ner']:
         for mention in entities:
             span = mention[:2]
-            entity_key = ' '.join(doc_tokens[span[0]:span[1]+1])
+            # entity_key = ' '.join(doc_tokens[span[0]:span[1]+1])
+            entity_key = str(len(cluster_dict))
+            entity_name_dict[entity_key] = ' '.join(doc_tokens[span[0]:span[1]+1])
             if tuple(span) not in span2cluster:
     
                 # If such entity string already exist, do not replace.
@@ -64,8 +68,8 @@ def convert(doc, is_gold):
     return {
         'doc_key': doc['doc_key'],
         'clusters': cluster_dict,
-        'relations': entity_level_relations
-        
+        'relations': entity_level_relations,
+        'entity_names': entity_name_dict
     }
 
 def main(args):
