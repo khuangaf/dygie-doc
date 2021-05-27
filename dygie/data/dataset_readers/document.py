@@ -236,6 +236,11 @@ class Document:
         if self.predicted_event_clusters is not None:
             res["predicted_event_clusters"] = [cluster.to_json() for cluster in self.predicted_event_clusters]
 
+
+        if self.document_relations is not None:
+            res["document_relations"] = [document_relation.to_json() for document_relation in self.document_relations]
+        if self.predicted_document_relations is not None:
+            res["predicted_document_relations"] = [document_relation.to_json() for document_relation in self.predicted_document_relations]
         if self.weight is not None:
             res["weight"] = self.weight
 
