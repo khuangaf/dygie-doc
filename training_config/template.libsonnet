@@ -34,6 +34,9 @@
     max_wordpieces_per_sentence :: 512,
     max_span_width :: 8,
     cuda_device :: -1,
+    window_size :: 5,
+    max_tokens_per_window :: 5,
+    encode_document :: false,
 
     ////////////////////
 
@@ -51,7 +54,9 @@
           max_length: dygie.max_wordpieces_per_sentence
         },
       },
-      max_span_width: dygie.max_span_width
+      max_span_width: dygie.max_span_width,
+      window_size: dygie.window_size,
+      max_tokens_per_window: dygie.max_tokens_per_window
     },
     train_data_path: dygie.data_paths.train,
     validation_data_path: dygie.data_paths.validation,
@@ -82,6 +87,7 @@
       loss_weights: dygie.loss_weights,
       feature_size: 20,
       max_span_width: dygie.max_span_width,
+      encode_document: dygie.encode_document,
       target_task: dygie.target_task,
       feedforward_params: {
         num_layers: 2,

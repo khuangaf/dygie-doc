@@ -4,6 +4,7 @@ from scipy.optimize import linear_sum_assignment
 import json
 import numpy as np
 from collections import OrderedDict
+from tabulate import tabulate
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--gold-file")
@@ -77,12 +78,12 @@ def evaluate_relations(preds, golds):
     rel_r = num_relation_matched / num_relation_gold if num_relation_gold != 0 else 0
     rel_f1 = 2 * rel_p * rel_r / (rel_p + rel_r) if (rel_p + rel_r) != 0 else 0
     return {
-        'cluster_p': cluster_p,
-        'cluster_r': cluster_r,
-        'cluster_f1': cluster_f1,
-        'relation_p': rel_p,
-        'relation_r': rel_r,
-        'relation_f1': rel_f1,
+        'cluster_p': cluster_p * 100,
+        'cluster_r': cluster_r* 100,
+        'cluster_f1': cluster_f1* 100,
+        'relation_p': rel_p* 100,
+        'relation_r': rel_r* 100,
+        'relation_f1': rel_f1* 100,
     }
 
 
@@ -95,7 +96,8 @@ def main(args):
     preds = load_jsonl(args.pred_file)
     golds = load_jsonl(args.gold_file)
 
-    print(evaluate_relations(golds, preds))
+    results = evaluate_relations(golds, preds)
+    print(tabulate({'metric': results.keys(), 'score':results.values()}))
 
 if __name__ == "__main__":
     args = parser.parse_args()

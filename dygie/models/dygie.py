@@ -66,7 +66,8 @@ class DyGIE(Model):
                  initializer: InitializerApplicator = InitializerApplicator(),
                  module_initializer: InitializerApplicator = InitializerApplicator(),
                  regularizer: Optional[RegularizerApplicator] = None,
-                 display_metrics: List[str] = None) -> None:
+                 display_metrics: List[str] = None,
+                 encode_document: bool = False) -> None:
         super(DyGIE, self).__init__(vocab, regularizer)
 
         ####################
@@ -86,6 +87,7 @@ class DyGIE(Model):
         self._loss_weights = loss_weights
         self._max_span_width = max_span_width
         self._display_metrics = self._get_display_metrics(target_task)
+        self._encode_document = encode_document
         token_emb_dim = self._embedder.get_output_dim()
         span_emb_dim = self._endpoint_span_extractor.get_output_dim()
 
@@ -215,10 +217,27 @@ class DyGIE(Model):
         # (n_sents, max_n_wordpieces, embedding_dim)
         text_embeddings = self._debatch(text_embeddings)
 
+    
+        
+
         # (n_sents, max_sentence_length)
         text_mask = self._debatch(util.get_text_field_mask(text, num_wrapping_dims=1).float())
         sentence_lengths = text_mask.sum(dim=1).long()  # (n_sents)
 
+        # encode the entire document at once
+        doc_text_embeddings = self._embedder(doc_text, num_wrapping_dims=1)
+        doc_text_embeddings = self._debatch(doc_text_embeddings)
+        # use document-level context for text embeddings
+        dummy_text_embeddings = torch.zeros_like(text_embeddings)
+        prev_start = 0
+
+        for sentence_idx, sentence_length in enumerate(sentence_lengths):
+            
+            dummy_text_embeddings[sentence_idx, :sentence_length,:] = doc_text_embeddings[0, prev_start:prev_start+sentence_length]
+            prev_start += sentence_length
+        text_embeddings = dummy_text_embeddings
+
+        
         span_mask = (spans[:, :, 0] >= 0).float()  # (n_sents, max_n_spans)
         # SpanFields return -1 when they are used as padding. As we do some comparisons based on
         # span widths when we attend over the span representations that we generate from these

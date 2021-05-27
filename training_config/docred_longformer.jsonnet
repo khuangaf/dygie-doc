@@ -1,7 +1,7 @@
 local template = import "template.libsonnet";
 
 template.DyGIE {
-  bert_model: "roberta-base",
+  bert_model: "allenai/longformer-base-4096",
   cuda_device: 1,
   data_paths: {
     train: "data/docred/processed-data/train.json",
@@ -18,5 +18,6 @@ template.DyGIE {
     event_coref: 0.0,
 
   },
-  target_task: "document_relation"
+  target_task: "document_relation",
+  encode_document: true
 }

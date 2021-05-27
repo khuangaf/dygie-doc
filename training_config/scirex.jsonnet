@@ -4,9 +4,9 @@ template.DyGIE {
   bert_model: "roberta-base",
   cuda_device: 1,
   data_paths: {
-    train: "data/docred/processed-data/train.json",
-    validation: "data/docred/processed-data/devdev.json",
-    test: "data/docred/processed-data/devtest.json",
+    train: "data/scirex/processed-data/train.json",
+    validation: "data/scirex/processed-data/dev.json",
+    test: "data/scirex/processed-data/test.json",
   },
   loss_weights: {
     ner: 0.2,
