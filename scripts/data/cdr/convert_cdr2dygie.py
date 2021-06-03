@@ -14,11 +14,12 @@ def chunks(l, n):
         assert len(l[i:i + n]) == n
         yield l[i:i + n]
 
-def convert_document(line):
+def convert_document(line, split):
     res = {
         'ner':[],
-        'doc_relations':[],
-        'clusters':[]
+        'document_relations':[],
+        'clusters':[],
+        '_split':split
     }
     line = line.rstrip().split('\t')
     
@@ -58,21 +59,28 @@ def convert_document(line):
 
     for (entity1_id, entity2_id), relation in relations.items():
         relation_type = relation.type
-        entity1 = entities[entity1_id]
-        entity2 = entities[entity2_id]
+        if relation_type in ['1:NR:2','not_include']: continue # skip negative relation
+        if relation.direction == 'L2R':
+            entity1 = entities[entity1_id]
+            entity2 = entities[entity2_id]
+        elif relation.direction == 'R2L':
+            entity1 = entities[entity2_id]
+            entity2 = entities[entity1_id]
+        else:
+            raise ValueError(f"Unexpected relation direction {relation.direction}")
         # take all the combination of all mentions 
         for mention1_start, mention1_end in zip(entity1.mstart.split(':'), entity1.mend.split(':')):
             for mention2_start, mention2_end in zip(entity2.mstart.split(':'), entity2.mend.split(':')):
-                res['doc_relations'].append([int(mention1_start), int(mention1_end)-1, int(mention2_start), int(mention2_end)-1, relation_type])
+                res['document_relations'].append([int(mention1_start), int(mention1_end)-1, int(mention2_start), int(mention2_end)-1, relation_type])
 
     return res
 
-def convert(input_path, output_path):
+def convert(input_path, output_path, split):
     res = []
     
     with open(input_path, 'r') as infile:
         for line in infile:
-            res.append(convert_document(line))
+            res.append(convert_document(line, split))
     
     with open(output_path, 'w') as f:
         for doc in res:
@@ -88,6 +96,7 @@ if __name__ == '__main__':
     
     p.add_argument('--input_path', type=str, help="") 
     p.add_argument('--output_path',type=str, help="path to store the output json file.")
+    p.add_argument('--split',type=str, help="train/dev/test.")
     args = p.parse_args()
 
-    convert(args.input_path, args.output_path)
+    convert(args.input_path, args.output_path, args.split)

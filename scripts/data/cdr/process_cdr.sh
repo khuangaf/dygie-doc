@@ -42,6 +42,6 @@ do
     
 done
 
-python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Training_filter.data --output_path $processed_dir/train.json
-python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Development_filter.data --output_path $processed_dir/dev.json
-python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Test_filter.data --output_path $processed_dir/test.json
+python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Training_filter.data --output_path $processed_dir/train.json --split train
+python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Development_filter.data --output_path $processed_dir/dev.json --split dev
+python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Test_filter.data --output_path $processed_dir/test.json --split test

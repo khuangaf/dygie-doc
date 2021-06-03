@@ -23,7 +23,7 @@ from dygie.data.dataset_readers import document
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-
+# logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=LEVEL)
 @Model.register("dygie")
 class DyGIE(Model):
     """
@@ -223,19 +223,21 @@ class DyGIE(Model):
         # (n_sents, max_sentence_length)
         text_mask = self._debatch(util.get_text_field_mask(text, num_wrapping_dims=1).float())
         sentence_lengths = text_mask.sum(dim=1).long()  # (n_sents)
-
+        
         # encode the entire document at once
-        doc_text_embeddings = self._embedder(doc_text, num_wrapping_dims=1)
-        doc_text_embeddings = self._debatch(doc_text_embeddings)
-        # use document-level context for text embeddings
-        dummy_text_embeddings = torch.zeros_like(text_embeddings)
-        prev_start = 0
-
-        for sentence_idx, sentence_length in enumerate(sentence_lengths):
+        if self._encode_document:
             
-            dummy_text_embeddings[sentence_idx, :sentence_length,:] = doc_text_embeddings[0, prev_start:prev_start+sentence_length]
-            prev_start += sentence_length
-        text_embeddings = dummy_text_embeddings
+            doc_text_embeddings = self._embedder(doc_text, num_wrapping_dims=1)
+            doc_text_embeddings = self._debatch(doc_text_embeddings)
+            # use document-level context for text embeddings
+            dummy_text_embeddings = torch.zeros_like(text_embeddings)
+            prev_start = 0
+
+            for sentence_idx, sentence_length in enumerate(sentence_lengths):
+                
+                dummy_text_embeddings[sentence_idx, :sentence_length,:] = doc_text_embeddings[0, prev_start:prev_start+sentence_length]
+                prev_start += sentence_length
+            text_embeddings = dummy_text_embeddings
 
         
         span_mask = (spans[:, :, 0] >= 0).float()  # (n_sents, max_n_spans)
