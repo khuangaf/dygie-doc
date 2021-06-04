@@ -23,6 +23,7 @@ def convert(doc, is_gold):
     span2cluster : Dict[Tuple[int], str]= {} 
     cluster_relation_count: Dict[Tuple(str), Dict[str, int]] = defaultdict(Counter)
     entity_name_dict = {}
+    cluster_in_relation = set()
     # gather cluster
     for cluster in doc[f'{prefix}clusters']:
         longest_mention_span = sorted(cluster, key=lambda x:x[1]-x[0], reverse=True)[0]
@@ -38,26 +39,41 @@ def convert(doc, is_gold):
         for mention in entities:
             span = mention[:2]
             # entity_key = ' '.join(doc_tokens[span[0]:span[1]+1])
-            entity_key = str(len(cluster_dict))
-            entity_name_dict[entity_key] = ' '.join(doc_tokens[span[0]:span[1]+1])
+            mention_string = ' '.join(doc_tokens[span[0]:span[1]+1])
+            
             if tuple(span) not in span2cluster:
-    
+                
+                entity_key = None
+                # merge mention with other entity if mention string is the same. do this for prediction only
+                if not is_gold:
+                    for other_span, other_cluster_id in span2cluster.items():
+                        other_mention_string = ' '.join(doc_tokens[other_span[0]:other_span[1]+1])
+                        if mention_string.lower() == other_mention_string.lower():
+                            entity_key = other_cluster_id
+                            break
+                # if no match string, assign new cluster id
+                if entity_key is None:
+                    entity_key = str(len(cluster_dict))
                 # If such entity string already exist, do not replace.
                 # TODO: we might come up a better way to handle this.
                 if entity_key not in cluster_dict:
                     cluster_dict[entity_key] = [span]
                     span2cluster[tuple(span)] = entity_key
-    
+                    entity_name_dict[entity_key] = ' '.join(doc_tokens[span[0]:span[1]+1])
+
+                
     # convert relation to entity level
     for relation in doc[f'{prefix}document_relations']:
         span1 = tuple(relation[:2])
         span2 = tuple(relation[2:4])
         relation_type = relation[4]
+        
         if span1 in span2cluster and span2 in span2cluster:
             entity1 = span2cluster[span1]
             entity2 = span2cluster[span2]
             cluster_relation_count[(entity1, entity2)][relation_type] += 1
-
+            
+    
     entity_level_relations = []
     for (entity1, entity2), relation_count in cluster_relation_count.items():
         # get argmax
@@ -65,6 +81,9 @@ def convert(doc, is_gold):
         entity_level_relations.append([entity1, entity2, best_relation_type])
 
     # TODO: maybe should consider not to include entities that does not involve in any relation.
+    
+
+
     return {
         'doc_key': doc['doc_key'],
         'clusters': cluster_dict,
