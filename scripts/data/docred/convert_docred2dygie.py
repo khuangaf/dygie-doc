@@ -84,8 +84,8 @@ def convert_coreference(vertex_sets, sentences):
             cluster.append([mention_start, mention_end])
         
         # a cluster must have 2 or more mentions
-        if len(cluster) >= 2:
-            clusters.append(cluster)
+        # if len(cluster) >= 2:
+        clusters.append(cluster)
     return clusters
 
 def write_to_jsonl(process_documents, output_path):

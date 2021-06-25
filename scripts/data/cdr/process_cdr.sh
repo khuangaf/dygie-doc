@@ -9,7 +9,6 @@ raw_dir=$out_dir/raw-data/CDR_Data
 intermediate_dir=$out_dir/intermediate
 processed_dir=$out_dir/processed-data
 common_dir=scripts/data/common
-script_dir=scripts/data/cdr
 mkdir $intermediate_dir
 mkdir $processed_dir
 mkdir $common_dir

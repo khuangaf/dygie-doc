@@ -35,14 +35,14 @@ class DyGIEReader(DatasetReader):
     def __init__(self,
                  max_span_width: int,
                  window_size:int,
-                 max_tokens_per_window: int,
+                 max_tokens_per_sentence: int,
                  token_indexers: Dict[str, TokenIndexer] = None,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self._max_span_width = max_span_width
         self._window_size = window_size
         self._token_indexers = token_indexers or {"tokens": SingleIdTokenIndexer()}
-        self._max_tokens_per_window = max_tokens_per_window
+        self._max_tokens_per_sentence = max_tokens_per_sentence
 
     @overrides
     def _read(self, file_path: str):
@@ -60,10 +60,60 @@ class DyGIEReader(DatasetReader):
         for line in lines:
             # Loop over the documents.
             doc_text = json.loads(line)
-            doc_text['_sentence_starts'] = compute_sentence_starts(doc_text['sentences'])
+            
             
             if 'train' in doc_text['_split'] :
-                # TODO dynamically determine
+                # TODO: i think the below if block is buggy, not working on docred
+                if self._max_tokens_per_sentence != -1: # if == -1, don't split sentences
+                    new_sentences = []
+                    annotated_tokens = set()
+                    for key in ['ner','events','relation','document_relations','clusters','event_clusters']:
+                        if key == 'ner':
+                            for sent_ner in doc_text[key]:
+                                for mention_ner in sent_ner:
+                                    for i in range(mention_ner[0], mention_ner[1]):
+                                        annotated_tokens.add(i+1)
+                                    
+                        elif key == 'clusters':
+                            for cluster in doc_text[key]:
+                                for span in cluster:
+                                    for i in range(span[0], span[1]):
+                                        annotated_tokens.add(i+1)
+                        elif key == 'document_relations':
+                            
+                            for rel in doc_text[key]:
+                                for i in range(rel[0], rel[1]):
+                                    annotated_tokens.add(i+1)
+                                for i in range(rel[2], rel[3]):
+                                    annotated_tokens.add(i+1)
+                        else:
+                            pass
+                            # raise NotImplementedError
+                            
+                    # print(annotated_tokens)
+                    doc_tokens = [tok for sent in doc_text['sentences'] for tok in sent]
+                    prev_split = 0
+                    while len(doc_tokens) > 0:
+                        
+                        next_split = prev_split + self._max_tokens_per_sentence
+                        # make sure it doesn't split on annotated tokens
+                        while next_split in annotated_tokens:
+                            next_split -= 1
+                        new_sentences.append(doc_tokens[:next_split-prev_split])
+                        doc_tokens = doc_tokens[next_split-prev_split:]
+                        prev_split = next_split
+                        # append dangling token to the last sentence
+                        if len(doc_tokens) <= 1:
+                            new_sentences[-1] += doc_tokens
+                            break
+
+                    doc_text['sentences'] = new_sentences
+
+                doc_text['_sentence_starts'] = compute_sentence_starts(doc_text['sentences'])
+
+                # adjust sentence-based annotation into corresponding sentences
+                doc_text = self._adjust_annotation(doc_text)
+                
                 num_sentences = len(doc_text['sentences'])
                 batch_start = 0
 
@@ -78,8 +128,41 @@ class DyGIEReader(DatasetReader):
                     instance = self.text_to_instance(sentence_chunk)
                     yield instance   
             else:
+                doc_text['_sentence_starts'] = compute_sentence_starts(doc_text['sentences'])
                 instance = self.text_to_instance(doc_text)
                 yield instance
+    def _adjust_annotation(self, doc_text):
+        '''
+        Adjust sentence-based annotation based on re-split sentences.
+        '''
+        def _get_sentence_idx(span):
+            for sentence_idx, (start, end) in enumerate(zip(sentence_starts, sentence_ends)):
+                if span[0] >= start and span[1] <= end:
+                    return sentence_idx
+            raise ValueError(f"Span{span} sentence idx cannot be found. starts:{sentence_starts}, ends:{sentence_ends}.")
+
+        sentence_starts = doc_text['_sentence_starts']
+        doc_length = len([tok for sent in doc_text['sentences'] for tok in sent])
+        sentence_ends = [x - 1 for x in sentence_starts[1:]] + [doc_length - 1]
+        for key in ['ner','relation','events']:
+            if key in doc_text:
+                new_annotations = [[] for _ in range(len(sentence_starts))]
+                annotations = [annotation for sent_annotation in doc_text[key] for annotation in sent_annotation]
+                for annotation in annotations:
+                    if key == 'ner':
+                        try:
+                            sentence_idx = _get_sentence_idx(annotation[:2])
+                            new_annotations[sentence_idx].append(annotation)
+                        except Exception as e:
+                            print(e)
+                            
+                    elif key == 'relation':
+                        raise NotImplementedError
+                    elif key == 'events':
+                        raise NotImplementedError
+                doc_text[key] = new_annotations
+        return doc_text
+
     def _compute_batch_end(self, batch_start, sentence_lengths):
         token_count = sentence_lengths[batch_start]
         batch_end = batch_start + 1

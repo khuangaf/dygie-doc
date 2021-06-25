@@ -39,7 +39,7 @@ def ceaf(clusters, gold_clusters):
     return cluster_similarity, zip(row_ind, col_ind) # need to re-zip again bc zip object disappear after iterating
 
 
-def evaluate_relations(preds, golds):
+def evaluate_relations(golds, preds):
     num_cluster_matched, num_cluster_predicted, num_cluster_gold = 0, 0, 0
     num_relation_matched, num_relation_predicted, num_relation_gold = 0, 0, 0
 

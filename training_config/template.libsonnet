@@ -35,8 +35,10 @@
     max_span_width :: 8,
     cuda_device :: -1,
     window_size :: 5,
-    max_tokens_per_window :: 5,
+    max_tokens_per_sentence :: -1,
     encode_document :: false,
+    gradient_checkpointing:: false,
+    coref_prop:: 0,
 
     ////////////////////
 
@@ -51,12 +53,12 @@
         bert: {
           type: 'pretrained_transformer_mismatched',
           model_name: dygie.bert_model,
-          max_length: dygie.max_wordpieces_per_sentence
+          max_length: dygie.max_wordpieces_per_sentence,
         },
       },
       max_span_width: dygie.max_span_width,
       window_size: dygie.window_size,
-      max_tokens_per_window: dygie.max_tokens_per_window
+      max_tokens_per_sentence: dygie.max_tokens_per_sentence
     },
     train_data_path: dygie.data_paths.train,
     validation_data_path: dygie.data_paths.validation,
@@ -69,7 +71,8 @@
           bert: {
             type: 'pretrained_transformer_mismatched',
             model_name: dygie.bert_model,
-            max_length: dygie.max_wordpieces_per_sentence
+            max_length: dygie.max_wordpieces_per_sentence,
+            gradient_checkpointing: dygie.gradient_checkpointing
           },
         },
       },
@@ -98,7 +101,7 @@
         coref: {
           spans_per_word: 0.3,
           max_antecedents: 100,
-          coref_prop: 0,
+          coref_prop: dygie.coref_prop,
         },
         ner: {},
         relation: {

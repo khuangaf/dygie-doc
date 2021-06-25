@@ -2,11 +2,11 @@ local template = import "template.libsonnet";
 
 template.DyGIE {
   bert_model: "allenai/longformer-base-4096",
-  cuda_device: 1,
+  cuda_device: 2,
   data_paths: {
-    train: "data/docred/processed-data/train.json",
-    validation: "data/docred/processed-data/devdev.json",
-    test: "data/docred/processed-data/devtest.json",
+    train: "data/gda/processed-data/train.json",
+    validation: "data/gda/processed-data/dev.json",
+    test: "data/gda/processed-data/test.json",
   },
   loss_weights: {
     ner: 0.2,
@@ -20,5 +20,8 @@ template.DyGIE {
   },
   target_task: "document_relation",
   encode_document: true,
-  gradient_checkpointing:true
+  window_size: 5,
+  gradient_checkpointing:true,
+  max_tokens_per_sentence:100,
+
 }
