@@ -289,8 +289,10 @@ class DyGIE(Model):
                 ner_labels, metadata)
 
         if self._loss_weights['document_relation'] > 0:
+            predicted_coref = self._coref.make_output_human_readable(output_coref)["predicted_clusters"][0]
+
             output_document_relation = self._document_relation(
-                spans, span_mask, span_embeddings, sentence_lengths, document_relation_labels, metadata)
+                spans, span_mask, span_embeddings, sentence_lengths, predicted_coref, document_relation_labels, metadata)
 
         # Use `get` since there are some cases where the output dict won't have a loss - for
         # instance, when doing prediction.

@@ -79,13 +79,13 @@ class DyGIEReader(DatasetReader):
                                 for span in cluster:
                                     for i in range(span[0], span[1]):
                                         annotated_tokens.add(i+1)
-                        elif key == 'document_relations':
+                        # elif key == 'document_relations':
                             
-                            for rel in doc_text[key]:
-                                for i in range(rel[0], rel[1]):
-                                    annotated_tokens.add(i+1)
-                                for i in range(rel[2], rel[3]):
-                                    annotated_tokens.add(i+1)
+                        #     for rel in doc_text[key]:
+                        #         for i in range(rel[0], rel[1]):
+                        #             annotated_tokens.add(i+1)
+                        #         for i in range(rel[2], rel[3]):
+                        #             annotated_tokens.add(i+1)
                         else:
                             pass
                             # raise NotImplementedError
@@ -299,6 +299,7 @@ class DyGIEReader(DatasetReader):
 
         for span, label in sent.cluster_dict.items():
             if self._too_long(span) or self._invalid(span):
+                print(f"Span {span} too long or invalid.")
                 continue
             ix = span_tuples.index(span)
             coref_labels[ix] = label
@@ -344,15 +345,13 @@ class DyGIEReader(DatasetReader):
         relations = []
         relation_indices = []
 
-        # Loop over the gold spans. Look up their indices in the list of span tuples and store
-        # values.
-        for (span1, span2), label in doc.document_relation_dict.items():
+        
+        for (ix1, ix2), label in doc.document_relation_dict.items():
             # If either span is beyond the max span width, skip it.
-            if self._too_long(span1) or self._too_long(span2) or self._invalid(span1) or self._invalid(span2):
-                continue
+            
             try:
-                ix1 = span_tuples.index(span1)
-                ix2 = span_tuples.index(span2)
+                # ix1 = span_tuples.index(span1)
+                # ix2 = span_tuples.index(span2)
                 relation_indices.append((ix1, ix2))
                 relations.append(label)
             except:
@@ -360,7 +359,7 @@ class DyGIEReader(DatasetReader):
                 print(span_tuples)
                 print(doc.document_relation_dict)
                 print(doc.doc_key)
-                print(span1, span2)
+                # print(span1, span2)
                 exit()
 
         return relations, relation_indices
@@ -460,9 +459,20 @@ class DyGIEReader(DatasetReader):
                 labels=document_argument_labels, label_namespace=f"{dataset}__document_argument_labels")
 
         if doc.document_relations is not None:
+
+            # build clusters
+            cluster_list = []
+            for cluster in doc.cluster_list:
+                
+                clust = ListField([SpanField(span[0], span[1]) for span in cluster])
+                cluster_list.append(clust)
+            cluster_field = ListField(cluster_list)
+            
+
+            # build document relations fileds
             document_relation_labels, relation_indices = self._process_document_relations(span_tuples, doc)
             fields["document_relation_labels"] = AdjacencyField(
-                indices=relation_indices, sequence_field=span_field, labels=document_relation_labels,
+                indices=relation_indices, sequence_field=cluster_field, labels=document_relation_labels,
                 label_namespace=f"{dataset}__document_relation_labels")
         return fields
     @overrides

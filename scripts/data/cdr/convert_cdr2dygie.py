@@ -31,6 +31,8 @@ def convert_document(line, split):
     
     res['ner'] = [[] for _ in range(num_sentences)]
     entities, relations = {}, {}
+    entity_id2idx = {} # map from original entity_id to the index of the entity for document_relations
+    
     for p in pairs:
         # pairs
         if (p[5], p[11]) not in relations:
@@ -53,9 +55,12 @@ def convert_document(line, split):
             
             res['ner'][int(sentence_num)].append([int(mention_start), int(mention_end)-1, entity_type])
             cluster.append([int(mention_start), int(mention_end)-1])
+            
         # an entity cluster must have >= 2 mentions
-        if len(cluster) >= 2:
-            res['clusters'].append(cluster)
+        # if len(cluster) >= 2:
+        
+        entity_id2idx[entity_id] = len(res['clusters'])
+        res['clusters'].append(cluster)
 
     for (entity1_id, entity2_id), relation in relations.items():
         relation_type = relation.type
@@ -63,15 +68,22 @@ def convert_document(line, split):
         if relation.direction == 'L2R':
             entity1 = entities[entity1_id]
             entity2 = entities[entity2_id]
+            entity1_idx = entity_id2idx[entity1_id]
+            entity2_idx = entity_id2idx[entity2_id]
         elif relation.direction == 'R2L':
             entity1 = entities[entity2_id]
             entity2 = entities[entity1_id]
+            entity1_idx = entity_id2idx[entity2_id]
+            entity2_idx = entity_id2idx[entity1_id]
         else:
             raise ValueError(f"Unexpected relation direction {relation.direction}")
         # take all the combination of all mentions 
-        for mention1_start, mention1_end in zip(entity1.mstart.split(':'), entity1.mend.split(':')):
-            for mention2_start, mention2_end in zip(entity2.mstart.split(':'), entity2.mend.split(':')):
-                res['document_relations'].append([int(mention1_start), int(mention1_end)-1, int(mention2_start), int(mention2_end)-1, relation_type])
+        # for mention1_start, mention1_end in zip(entity1.mstart.split(':'), entity1.mend.split(':')):
+        #     for mention2_start, mention2_end in zip(entity2.mstart.split(':'), entity2.mend.split(':')):
+        #         res['document_relations'].append([int(mention1_start), int(mention1_end)-1, int(mention2_start), int(mention2_end)-1, relation_type])
+        
+        res['document_relations'].append([entity1_idx, entity2_idx, relation_type])
+        
 
     return res
 

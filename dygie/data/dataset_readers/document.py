@@ -113,21 +113,30 @@ class Document:
         if document_relations is not None:
             document_relation_dict = {}
             for rel in document_relations:
-                span1, span2 = (rel.pair[0].span_doc, rel.pair[1].span_doc)
-                try:
-                    n_tokens = sum([len(x) for x in sentences])
-                    # make sure no span is crossing sentences
-                    get_sentence_of_span(span1, sentence_starts, n_tokens)
-                    get_sentence_of_span(span2, sentence_starts, n_tokens)
-                    key = (span1, span2)
-                    document_relation_dict[key] = rel.label
-                except SpanCrossesSentencesError:
-                    print(f"Document {self.doc_key} has a document relation crossing sentences. Skipping...")
-
+                idx1, idx2 = rel.idx_pair
+                key = (idx1, idx2)
+                document_relation_dict[key] = rel.label
+                
+                
             self.document_relation_dict = document_relation_dict
         else:
 
             self.document_relation_dict = None
+
+        # cluster list for document_relations
+        # this will be stored in metadata for now.
+        # TODO (steeve): don't pass cluster_list via Metadata.
+        if self.clusters is not None:
+            self.cluster_list = []
+            for clust in clusters:
+                self.cluster_list.append([list(member.span.span_doc) for member in clust.members])
+                    
+
+        else:
+            if self.document_relations is not None:
+                raise ValueError("clusters must not be None if document relations is not None")
+            self.cluster_list = None
+
 
     @classmethod
     def from_json(cls, js):
@@ -179,29 +188,30 @@ class Document:
             predicted_event_clusters = None
 
         if "document_relations" in js:
-            document_relations = [DocumentRelation(this_relation, sentences) for this_relation in js['document_relations'] ]
+            document_relations = [DocumentRelation(this_relation, sentences, clusters) for this_relation in js['document_relations'] ]
         else:
             document_relations = None
             
         if "predicted_document_relations" in js:
-            predicted_document_relations = [PredictedDocumentRelation(this_relation, sentences) for this_relation in js['predicted_document_relations'] ]
+            predicted_document_relations = [PredictedDocumentRelation(this_relation, sentences, predicted_clusters) for this_relation in js['predicted_document_relations'] ]
         else:
             predicted_document_relations = None
-        if "document_events" in js:
-            document_events = DocumentEvents(js['document_events'], sentences, sentence_starts)
-        else:
-            document_events = None
-        if "predicted_document_events" in js:
-            predicted_document_events = PredictedDocumentEvents(js['predicted_document_events'], sentences, sentence_starts)
-        else:
-            predicted_document_events = None
+        # if "document_events" in js:
+        #     document_events = DocumentEvents(js['document_events'], sentences, sentence_starts)
+        # else:
+        #     document_events = None
+        # if "predicted_document_events" in js:
+        #     predicted_document_events = PredictedDocumentEvents(js['predicted_document_events'], sentences, sentence_starts)
+        # else:
+        #     predicted_document_events = None
         
         # Update the sentences with coreference cluster labels.
         sentences = update_sentences_with_clusters(sentences, clusters)
         sentences = update_sentences_with_event_clusters(sentences, event_clusters)
+
         # Get the loss weight for this document.
         weight = js.get("weight", None)
-
+        
         return cls(doc_key, dataset, sentences, clusters, predicted_clusters, event_clusters,
                    predicted_event_clusters, document_relations, predicted_document_relations, weight=weight, sentence_starts=sentence_starts)
 
@@ -821,31 +831,33 @@ class DocumentToken:
         return str((self.ix_doc, self.text)) 
 
 class DocumentRelation:
-    def __init__(self, relation, sentences):
-        start1, end1 = relation[0], relation[1]
-        start2, end2 = relation[2], relation[3]
-        label = relation[4]
-        span1 = DocumentSpan(start1, end1, sentences)
-        span2 = DocumentSpan(start2, end2, sentences)
-        self.pair = (span1, span2)
-        self.label = label
+    def __init__(self, relation, sentences, clusters):
+        entity_idx1, entity_idx2 = relation[:2]
+        
+        spans1 = [DocumentSpan(start1, end1, sentences) for member in clusters[entity_idx1] for start1, end1 in member.span.span_doc]
+        spans2 = [DocumentSpan(start2, end2, sentences) for member in clusters[entity_idx2] for start2, end2 in member.span.span_doc]
+        self.pairs = (spans1, spans2)
+        self.idx_pair = (entity_idx1, entity_idx2)
+        self.label = relation[2]
+        self.clusters = clusters
 
     def __repr__(self):
-        return f"{self.pair[0].__repr__()}, {self.pair[1].__repr__()}: {self.label}"
+        return f"{self.pairs[0][0].__repr__()}, {self.pairs[1][0].__repr__()}: {self.label}"
 
     def __eq__(self, other):
-        return (self.pair == other.pair) and (self.label == other.label)
+        return (self.pairs == other.pairs) and (self.label == other.label)
 
     def to_json(self):
-        return list(self.pair[0].span_doc) + list(self.pair[1].span_doc) + [self.label]
+        
+        return list(self.idx_pair) + [self.label]
 
 
 class PredictedDocumentRelation(DocumentRelation):
-    def __init__(self, relation, sentence):
-        "Input format: [start_1, end_1, start_2, end_2, label, raw_score, softmax_score]."
-        super().__init__(relation, sentence)
-        self.raw_score = relation[5]
-        self.softmax_score = relation[6]
+    def __init__(self, relation, sentences, clusters):
+        "Input format: [idx1, idx2, label, raw_score, softmax_score]."
+        super().__init__(relation, sentences, clusters)
+        self.raw_score = relation[3]
+        self.softmax_score = relation[4]
 
     def __repr__(self):
         return super().__repr__() + f" with confidence {self.softmax_score:0.4f}"

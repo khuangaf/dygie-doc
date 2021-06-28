@@ -427,10 +427,11 @@ class CorefResolver(Model):
             clusters: List[List[Tuple[int, int]]] = []
 
             for i, (span, predicted_antecedent) in enumerate(zip(top_spans, predicted_antecedents)):
-                if predicted_antecedent < 0:
+                # We output spans without co-refent
+                # if predicted_antecedent < 0:
                     # We don't care about spans which are
                     # not co-referent with anything.
-                    continue
+                    # continue
 
                 # Find the right cluster to update with this span.
                 predicted_index = antecedent_indices[i, predicted_antecedent]

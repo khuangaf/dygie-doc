@@ -70,6 +70,7 @@ class DocumentRelationExtractor(Model):
                 span_mask,
                 span_embeddings,  # TODO(dwadden) add type.
                 sentence_lengths,
+                predicted_coref, 
                 document_relation_labels: torch.IntTensor = None,
                 metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
         """
@@ -77,6 +78,7 @@ class DocumentRelationExtractor(Model):
 
         """
         self._active_namespace = f"{metadata.dataset}__document_relation_labels"
+        
 
         # create batch dimensions for labels bc the labels have been flattened
         document_relation_labels = document_relation_labels.unsqueeze(0)
@@ -99,28 +101,40 @@ class DocumentRelationExtractor(Model):
         doc_spans = span_plus_sentence[torch.where(span_mask > 0)].view(-1, 2).unsqueeze(0) #(1, num_doc_spans, 2)
 
         doc_span_mask = torch.ones_like(doc_span_embeddings)[:,:,0] # all the spans are valid bc we have already filtered the invalid using torch.where(span_mask > 0)
+        # if training, use gold coref
+        entity_embeddings = []
+        if self.training:
+            clusters = metadata.cluster_list
+        else:
+            clusters = predicted_coref
+        
+        for cluster in clusters:
+            this_entity_embeddings = []
+            for span in cluster:
+                mention_span_mask = doc_spans[0,:,0]==span[0]  * doc_spans[0,:,0]==span[1] # (num_doc_spans)
+                mention_embeddings = doc_span_embeddings[:,mention_span_mask, :] #(1, 1 emb_dim)
+                assert mention_embeddings.size(1) == 1, mention_embeddings.size()
+                this_entity_embeddings.append(mention_embeddings)
+            this_entity_embeddings = torch.cat(this_entity_embeddings, dim=1).max(dim=1)[0] # (1, emb_dim)
+            entity_embeddings.append(this_entity_embeddings)
 
-        (top_span_embeddings, top_span_mention_scores,
-         num_spans_to_keep, top_span_mask,
-         top_span_indices, top_spans) = self._prune_spans(
-             doc_spans, doc_span_mask, doc_span_embeddings, doc_length)
+        entity_embeddings = entity_embeddings.cat(entity_embeddings, dim=0).unsqueeze(0) # (1, num_entities, emb_dim)
+
 
         relation_scores = self._compute_relation_scores(
-            self._compute_span_pair_embeddings(top_span_embeddings), top_span_mention_scores)
+            self._compute_span_pair_embeddings(entity_embeddings))
 
-        prediction_dict, predictions = self.predict(top_spans.detach().cpu(),
-                                                    relation_scores.detach().cpu(),
-                                                    num_spans_to_keep.detach().cpu(),
-                                                    metadata)
+        prediction_dict, predictions = self.predict(relation_scores.detach().cpu(), metadata)
 
         output_dict = {"predictions": predictions}
 
         # Evaluate loss and F1 if labels were provided.
         if document_relation_labels is not None:
             # Compute cross-entropy loss.
-            gold_relations = self._get_pruned_gold_relations(
-                document_relation_labels, top_span_indices, top_span_mask)
-
+            # gold_relations = self._get_pruned_gold_relations(
+            #     document_relation_labels, top_span_indices, top_span_mask)
+            # TODO (steeve): not sure if this is correct
+            gold_relations =  document_relation_labels[0]
             cross_entropy = self._get_cross_entropy_loss(relation_scores, gold_relations)
 
             # Compute F1.
@@ -152,7 +166,7 @@ class DocumentRelationExtractor(Model):
 
         return top_span_embeddings, top_span_mention_scores, num_spans_to_keep, top_span_mask, top_span_indices, top_spans
 
-    def predict(self, top_spans, relation_scores, num_spans_to_keep, metadata):
+    def predict(self, relation_scores, metadata):
         '''
         pred_dict_doc: a dictionary
         predictions_doc: a list of relations
@@ -162,15 +176,15 @@ class DocumentRelationExtractor(Model):
         
         
         pred_dict_doc, predictions_doc = self._predict_document(
-            top_spans[0], relation_scores[0], num_spans_to_keep[0], doc)
+            relation_scores[0], doc)
             
         # predictions.append(predictions_doc)
 
         return pred_dict_doc, predictions_doc
 
-    def _predict_document(self, top_spans, relation_scores, num_spans_to_keep, doc):
-        keep = num_spans_to_keep.item()
-        top_spans = [tuple(x) for x in top_spans.tolist()]
+    def _predict_document(self, relation_scores, doc):
+        # keep = num_spans_to_keep.item()
+        # top_spans = [tuple(x) for x in top_spans.tolist()]
 
         # Iterate over all span pairs and labels. Record the span if the label isn't null.
         predicted_scores_raw, predicted_labels = relation_scores.max(dim=-1)
@@ -178,25 +192,26 @@ class DocumentRelationExtractor(Model):
         predicted_scores_softmax, _ = softmax_scores.max(dim=-1)
         predicted_labels -= 1  # Subtract 1 so that null labels get -1.
 
-        keep_mask = torch.zeros(len(top_spans))
-        keep_mask[:keep] = 1
-        keep_mask = keep_mask.bool()
+        # keep_mask = torch.zeros(len(top_spans))
+        # keep_mask[:keep] = 1
+        # keep_mask = keep_mask.bool()
 
-        ix = (predicted_labels >= 0) & keep_mask
+        # ix = (predicted_labels >= 0) & keep_mask
+        ix = (predicted_labels >= 0) 
 
         res_dict = {}
         predictions = []
 
         for i, j in ix.nonzero(as_tuple=False):
-            span_1 = top_spans[i]
-            span_2 = top_spans[j]
+            # span_1 = top_spans[i]
+            # span_2 = top_spans[j]
             label = predicted_labels[i, j].item()
             raw_score = predicted_scores_raw[i, j].item()
             softmax_score = predicted_scores_softmax[i, j].item()
 
             label_name = self.vocab.get_token_from_index(label, namespace=self._active_namespace)
-            res_dict[(span_1, span_2)] = label_name
-            list_entry = (span_1[0], span_1[1], span_2[0], span_2[1], label_name, raw_score, softmax_score)
+            res_dict[(i, j)] = label_name
+            list_entry = (i, j, label_name, raw_score, softmax_score)
             predictions.append(document.PredictedDocumentRelation(list_entry, doc.sentences))
 
         return res_dict, predictions
@@ -244,7 +259,7 @@ class DocumentRelationExtractor(Model):
 
         return pair_embeddings
 
-    def _compute_relation_scores(self, pairwise_embeddings, top_span_mention_scores):
+    def _compute_relation_scores(self, pairwise_embeddings):
         relation_feedforward = self._relation_feedforwards[self._active_namespace]
         relation_scorer = self._relation_scorers[self._active_namespace]
 
@@ -259,10 +274,6 @@ class DocumentRelationExtractor(Model):
 
         relation_scores = relation_scores_flat.view(batch_size, max_num_spans, max_num_spans, -1)
 
-        # Add the mention scores for each of the candidates.
-
-        relation_scores += (top_span_mention_scores.unsqueeze(-1) +
-                            top_span_mention_scores.transpose(1, 2).unsqueeze(-1))
 
         shape = [relation_scores.size(0), relation_scores.size(1), relation_scores.size(2), 1]
         dummy_scores = relation_scores.new_zeros(*shape)
