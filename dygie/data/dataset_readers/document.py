@@ -109,11 +109,14 @@ class Document:
         self.weight = weight
         self.sentence_starts = sentence_starts
         
+        unique_entity_idx = set()
         # build document relations dictionary
         if document_relations is not None:
             document_relation_dict = {}
             for rel in document_relations:
                 idx1, idx2 = rel.idx_pair
+                unique_entity_idx.add(idx1)
+                unique_entity_idx.add(idx2)
                 key = (idx1, idx2)
                 document_relation_dict[key] = rel.label
                 
@@ -131,12 +134,13 @@ class Document:
             for clust in clusters:
                 self.cluster_list.append([list(member.span.span_doc) for member in clust.members])
                     
-
+        
         else:
             if self.document_relations is not None:
                 raise ValueError("clusters must not be None if document relations is not None")
             self.cluster_list = None
 
+        assert len(unique_entity_idx) <= len(self.cluster_list), (unique_entity_idx, self.cluster_list)
 
     @classmethod
     def from_json(cls, js):
@@ -188,7 +192,7 @@ class Document:
             predicted_event_clusters = None
 
         if "document_relations" in js:
-            document_relations = [DocumentRelation(this_relation, sentences, clusters) for this_relation in js['document_relations'] ]
+            document_relations = [DocumentRelation(this_relation, sentences, js["clusters"]) for this_relation in js['document_relations'] ]
         else:
             document_relations = None
             
@@ -834,8 +838,8 @@ class DocumentRelation:
     def __init__(self, relation, sentences, clusters):
         entity_idx1, entity_idx2 = relation[:2]
         
-        spans1 = [DocumentSpan(start1, end1, sentences) for member in clusters[entity_idx1] for start1, end1 in member.span.span_doc]
-        spans2 = [DocumentSpan(start2, end2, sentences) for member in clusters[entity_idx2] for start2, end2 in member.span.span_doc]
+        spans1 = [DocumentSpan(member[0], member[1], sentences) for member in clusters[entity_idx1]]
+        spans2 = [DocumentSpan(member[0], member[1], sentences) for member in clusters[entity_idx2]]
         self.pairs = (spans1, spans2)
         self.idx_pair = (entity_idx1, entity_idx2)
         self.label = relation[2]

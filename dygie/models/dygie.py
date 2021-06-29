@@ -289,7 +289,10 @@ class DyGIE(Model):
                 ner_labels, metadata)
 
         if self._loss_weights['document_relation'] > 0:
-            predicted_coref = self._coref.make_output_human_readable(output_coref)["predicted_clusters"][0]
+            if self.training:
+                predicted_coref = None
+            else:    
+                predicted_coref = self._coref.make_output_human_readable(output_coref)["predicted_clusters"][0]
 
             output_document_relation = self._document_relation(
                 spans, span_mask, span_embeddings, sentence_lengths, predicted_coref, document_relation_labels, metadata)

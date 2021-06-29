@@ -407,6 +407,7 @@ class CorefResolver(Model):
 
         # A tensor of shape (batch_size, num_spans_to_keep, 2), representing
         # the start and end indices of each span.
+        
         batch_top_spans = output_dict["top_spans"].detach().cpu()
 
         # A tensor of shape (batch_size, num_spans_to_keep) representing, for each span,

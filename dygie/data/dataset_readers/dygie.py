@@ -10,14 +10,14 @@ from overrides import overrides
 from allennlp.common.file_utils import cached_path
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
 from allennlp.data.fields import (ListField, TextField, SpanField, MetadataField,
-                                  SequenceLabelField, AdjacencyField, LabelField)
+                                  SequenceLabelField, AdjacencyField, LabelField, IndexField)
 from allennlp.data.instance import Instance
 from allennlp.data.tokenizers import Token
 from allennlp.data.token_indexers import SingleIdTokenIndexer, TokenIndexer
 from allennlp.data.dataset_readers.dataset_utils import enumerate_spans
 
 from dygie.data.fields.adjacency_field_assym import AdjacencyFieldAssym
-from dygie.data.dataset_readers.document import Document, Sentence
+from dygie.data.dataset_readers.document import ClusterMember, Document, Sentence
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -172,14 +172,17 @@ class DyGIEReader(DatasetReader):
 
     def form_sentence_chunk(self, doc_text, chunk_start, chunk_end, batch_start, batch_end):
         sentence_chunk = deepcopy(doc_text)
+        
         for key in ['events','relation','ner','clusters','event_clusters','document_events','document_relations','sentences', '_sentence_starts']:
             if key in doc_text:
                 if key in {'sentences', '_sentence_starts','events','relation','ner'}:
                     sentence_chunk[key] = self._truncate_sentences(doc_text[key], batch_start, batch_end)
                 elif key in {'clusters','event_clusters'}:
-                    sentence_chunk[key] = self._truncate_clusters(doc_text[key], chunk_start, chunk_end)
+                    sentence_chunk[key], _cluster_mapping = self._truncate_clusters(doc_text[key], chunk_start, chunk_end)
+                    if key == 'clusters':
+                        cluster_mapping = _cluster_mapping
                 elif key == 'document_relations':
-                    sentence_chunk[key] = self._truncate_document_relations(doc_text[key], chunk_start, chunk_end)
+                    sentence_chunk[key] = self._truncate_document_relations(doc_text[key], chunk_start, chunk_end, cluster_mapping)
                 elif key == 'document_events':
                     sentence_chunk[key] = self._truncate_document_events(doc_text[key], chunk_start, chunk_end)
                 else:
@@ -194,11 +197,13 @@ class DyGIEReader(DatasetReader):
         Given a document, gather only the instance that falls in chunk_start, chunk_end
         '''
         new_clusters = []
-        for cluster in clusters:
-            new_cluster = [[span[0], span[1]] for span in cluster if self._within_range(span, chunk_start, chunk_end)]
-            if len(new_cluster) >= 2:
+        cluster_mapping = {} # map from original cluster idx to new cluster idx
+        for original_cluster_idx, cluster in enumerate(clusters):
+            new_cluster = [[span[0], span[1]] for span in cluster if self._within_range(span, chunk_start, chunk_end) and not self._too_long(span)]
+            if len(new_cluster) >= 1:
+                cluster_mapping[original_cluster_idx] = len(new_clusters)
                 new_clusters.append(new_cluster)
-        return new_clusters
+        return new_clusters, cluster_mapping
 
     def _truncate_document_events(self, document_events, chunk_start, chunk_end):
         '''
@@ -219,15 +224,18 @@ class DyGIEReader(DatasetReader):
                 new_document_events.append(new_document_event)
         return new_document_events
 
-    def _truncate_document_relations(self, document_relations, chunk_start, chunk_end):
+    def _truncate_document_relations(self, document_relations, chunk_start, chunk_end, cluster_mapping):
         '''
         Given a document, gather only the document relation instance where both span are within chunk_start.
         '''
         new_document_relations = []
         for document_relation in document_relations:
-            span1, span2 = (document_relation[:2], document_relation[2:4])
-            if self._within_range(span1, chunk_start, chunk_end) and self._within_range(span2, chunk_start, chunk_end):
-                new_document_relations.append(document_relation)
+            # span1, span2 = (document_relation[:2], document_relation[2:4])
+            entity_idx1, entity_idx2, relation_label = document_relation
+
+            if entity_idx1 in cluster_mapping and entity_idx2 in cluster_mapping:
+                new_document_relation = [cluster_mapping[entity_idx1], cluster_mapping[entity_idx2], relation_label]
+                new_document_relations.append(new_document_relation)
         return new_document_relations
     
     def _truncate_sentences(self, sentence_annotations, batch_start, batch_end):
@@ -265,16 +273,17 @@ class DyGIEReader(DatasetReader):
                     arg[0] -= chunk_start
                     arg[1] -= chunk_start
         elif key == 'document_relations':
-            for document_relation in sentence_chunk[key]:
-                for i in range(4):
-                    document_relation[i] -= chunk_start
+            return sentence_chunk[key]
+        #     for document_relation in sentence_chunk[key]:
+        #         for i in range(4):
+        #             document_relation[i] -= chunk_start
         elif key in {'clusters', 'event_clusters'}:
             for cluster in sentence_chunk[key]:
                 for span in cluster:
                     span[0] -= chunk_start
                     span[1] -= chunk_start
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"{key} not implemented.")
         return sentence_chunk[key]
         
     def _too_long(self, span):
@@ -461,12 +470,12 @@ class DyGIEReader(DatasetReader):
         if doc.document_relations is not None:
 
             # build clusters
-            cluster_list = []
-            for cluster in doc.cluster_list:
-                
-                clust = ListField([SpanField(span[0], span[1]) for span in cluster])
-                cluster_list.append(clust)
-            cluster_field = ListField(cluster_list)
+            # a work-around for AdjacencyField
+            cluster_field = [IndexField(cluster_idx, sequence_field=span_field)
+                 for cluster_idx in range(len(doc.cluster_list)+1)]
+            
+            cluster_field = ListField(cluster_field)
+
             
 
             # build document relations fileds
@@ -492,8 +501,10 @@ class DyGIEReader(DatasetReader):
         fields = self._process_sentence_fields(doc)
 
         fields = self._process_doc_fields(doc, fields)
-        fields["metadata"] = MetadataField(doc)
 
+        
+        fields["metadata"] = MetadataField(doc)
+        
         return Instance(fields)
 
     @overrides
