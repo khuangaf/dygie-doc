@@ -122,12 +122,18 @@ class DyGIEReader(DatasetReader):
                 # sent_lengths = [len(sent) for sent in doc_text['sentences']]
                 # while batch_start < num_sentences:
                 #     batch_end = self._compute_batch_end(batch_start, sent_lengths)
+                    # TODO (steeve): This is buggy!! should use sentence ends to compute chunk end.
                     chunk_start, chunk_end = doc_text['_sentence_starts'][batch_start], doc_text['_sentence_starts'][batch_end]
                     sentence_chunk = self.form_sentence_chunk(doc_text, chunk_start, chunk_end, batch_start, batch_end)
                     sentence_chunk = self.normalize_chunk(sentence_chunk, chunk_start, chunk_end)
                     instance = self.text_to_instance(sentence_chunk)
                     yield instance   
             else:
+                # remove invalid spans in clusters
+                chunk_start = 0
+                chunk_end = len([tok for sent in doc_text['sentences'] for tok in sent])
+                doc_text['clusters'], cluster_mapping = self._truncate_clusters(doc_text['clusters'], chunk_start, chunk_end)
+                doc_text['document_relations'] = self._truncate_document_relations(doc_text['document_relations'], chunk_start, chunk_end, cluster_mapping)
                 doc_text['_sentence_starts'] = compute_sentence_starts(doc_text['sentences'])
                 instance = self.text_to_instance(doc_text)
                 yield instance

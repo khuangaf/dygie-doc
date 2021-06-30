@@ -184,6 +184,7 @@ class DyGIE(Model):
                 argument_labels=None,
                 document_relation_labels=None,
                 doc_text=None, # this is for longformer
+                use_predicted_cluster=False,
                 ):
         """
         TODO(dwadden) change this.
@@ -289,11 +290,14 @@ class DyGIE(Model):
                 ner_labels, metadata)
 
         if self._loss_weights['document_relation'] > 0:
-            if self.training:
-                predicted_coref = None
+            # during training and validation, use gold cluster.
+            if use_predicted_cluster:
+                predicted_coref = self._coref.make_output_human_readable(output_coref, output_ner)["predicted_clusters"][0]
             else:    
-                predicted_coref = self._coref.make_output_human_readable(output_coref)["predicted_clusters"][0]
-
+                predicted_coref = None
+                
+            
+                        
             output_document_relation = self._document_relation(
                 spans, span_mask, span_embeddings, sentence_lengths, predicted_coref, document_relation_labels, metadata)
 
@@ -358,9 +362,14 @@ class DyGIE(Model):
 
         if self._loss_weights["coref"] > 0:
             # TODO(dwadden) Will need to get rid of the [0] when batch training is enabled.
-            decoded_coref = self._coref.make_output_human_readable(output_dict["coref"])["predicted_clusters"][0]
+            if self._loss_weights['document_relation'] > 0:
+                decoded_coref = self._coref.make_output_human_readable(output_dict["coref"], output_dict["ner"])["predicted_clusters"][0]
+            else:
+                decoded_coref = self._coref.make_output_human_readable(output_dict["coref"])["predicted_clusters"][0]
+
             sentences = doc.sentences
             sentence_starts = [sent.sentence_start for sent in sentences]
+            # print(decoded_coref)
             predicted_clusters = [document.Cluster(entry, i, sentences, sentence_starts)
                                   for i, entry in enumerate(decoded_coref)]
             doc.predicted_clusters = predicted_clusters

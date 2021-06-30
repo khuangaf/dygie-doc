@@ -385,7 +385,7 @@ class CorefResolver(Model):
         return output_dict
 
     @overrides
-    def make_output_human_readable(self, output_dict: Dict[str, torch.Tensor]):
+    def make_output_human_readable(self, output_dict: Dict[str, torch.Tensor], output_ner=None):
         """
         Converts the list of spans and predicted antecedent indices into clusters
         of spans for each element in the batch.
@@ -394,7 +394,9 @@ class CorefResolver(Model):
         ----------
         output_dict : ``Dict[str, torch.Tensor]``, required.
             The result of calling :func:`forward` on an instance or batch of instances.
-
+        output_ner: ``List[List[PredictedNer]]``
+            If output_ner is given, merge the predicted mentions as predicted clusters. One predicted mention 
+            corresponds to one predicted cluster.
         Returns
         -------
         The same output dictionary, but with an additional ``clusters`` key:
@@ -429,10 +431,10 @@ class CorefResolver(Model):
 
             for i, (span, predicted_antecedent) in enumerate(zip(top_spans, predicted_antecedents)):
                 # We output spans without co-refent
-                # if predicted_antecedent < 0:
+                if predicted_antecedent < 0:
                     # We don't care about spans which are
                     # not co-referent with anything.
-                    # continue
+                    continue
 
                 # Find the right cluster to update with this span.
                 predicted_index = antecedent_indices[i, predicted_antecedent]
@@ -456,10 +458,26 @@ class CorefResolver(Model):
                 clusters[predicted_cluster_id].append((span_start, span_end))
                 spans_to_cluster_ids[(span_start, span_end)] = predicted_cluster_id
             batch_clusters.append(clusters)
-
+        
         output_dict["predicted_clusters"] = batch_clusters
-        return output_dict
 
+        
+        if output_ner is not None:
+            output_dict["predicted_clusters"] = self.merge_ner(output_dict["predicted_clusters"], output_ner)
+
+        return output_dict
+    def merge_ner(self, predicted_clusters, output_ner):
+        '''
+        Merge ner predictions to cluster predictions.
+        '''
+        identified_spans = set(tuple(span) for cluster in predicted_clusters[0] for span in cluster)
+        for ner_pred_sent in output_ner["predictions"]:
+            for ner_pred in ner_pred_sent:
+                ner_span = ner_pred.span.span_doc
+                # if the span is not 
+                if ner_span not in  identified_spans:
+                    predicted_clusters[0].append([list(ner_span)])
+        return predicted_clusters
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         mention_recall = self._mention_recall.get_metric(reset)

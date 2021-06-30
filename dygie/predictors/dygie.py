@@ -53,6 +53,8 @@ class DyGIEPredictor(Predictor):
             dataset = Batch([instance])
             dataset.index_instances(model.vocab)
             model_input = util.move_to_device(dataset.as_tensor_dict(), cuda_device)
+            if 'document_relation_labels' in model_input:
+                model_input['use_predicted_cluster'] = True
             prediction = model.make_output_human_readable(model(**model_input)).to_json()
         # If we run out of GPU memory, warn user and indicate that this document failed.
         # This way, prediction doesn't grind to a halt every time we run out of GPU.

@@ -22,6 +22,7 @@ class DocumentRelationMetrics(RelationMetrics):
         gold_relations = document.document_relation_dict
         self._total_gold += len(gold_relations)
         self._total_predicted += len(predicted_relations)
+        
         for (span_1, span_2), label in predicted_relations.items():
             ix = (span_1, span_2)
             if ix in gold_relations and gold_relations[ix] == label:

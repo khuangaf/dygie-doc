@@ -103,10 +103,12 @@ class DocumentRelationExtractor(Model):
         doc_span_mask = torch.ones_like(doc_span_embeddings)[:,:,0] # all the spans are valid bc we have already filtered the invalid using torch.where(span_mask > 0)
         # if training, use gold coref
         entity_embeddings = []
-        if self.training:
+        if not predicted_coref:
             clusters = metadata.cluster_list
+            
         else:
             clusters = predicted_coref
+            
         # print("clusters", clusters)
         # print("document_relation_dict", metadata.document_relation_dict)
         for cluster in clusters:
@@ -138,17 +140,22 @@ class DocumentRelationExtractor(Model):
         output_dict = {"predictions": predictions}
 
         # Evaluate loss and F1 if labels were provided.
-        if document_relation_labels is not None:
+        if self.training:
             # Compute cross-entropy loss.
             # gold_relations = self._get_pruned_gold_relations(
             #     document_relation_labels, top_span_indices, top_span_mask)
-            # TODO (steeve): not sure if this is correct
-            # gold_relations =  document_relation_labels
-            n = document_relation_labels.size(1)
+            
 
             # need to do this because a dummy dimension is created when producing document_relation_labels
             gold_relations = document_relation_labels#[:,:n-1,:n-1]
+            gold_relations += 1
+            gold_relations[:,-1,:] = -1
+            gold_relations[:,:,-1] = -1
+            
+            
+            
 
+            # print("gold", gold_relations)
             # print(relation_scores.shape, gold_relations.shape)
             cross_entropy = self._get_cross_entropy_loss(relation_scores, gold_relations)
 
@@ -204,6 +211,7 @@ class DocumentRelationExtractor(Model):
         # Iterate over all span pairs and labels. Record the span if the label isn't null.
         predicted_scores_raw, predicted_labels = relation_scores.max(dim=-1)
         softmax_scores = F.softmax(relation_scores, dim=-1)
+        
         predicted_scores_softmax, _ = softmax_scores.max(dim=-1)
         predicted_labels -= 1  # Subtract 1 so that null labels get -1.
 
@@ -218,6 +226,8 @@ class DocumentRelationExtractor(Model):
         predictions = []
 
         for i, j in ix.nonzero(as_tuple=False):
+            i = i.item()
+            j = j.item()
             # span_1 = top_spans[i]
             # span_2 = top_spans[j]
             label = predicted_labels[i, j].item()
@@ -292,14 +302,15 @@ class DocumentRelationExtractor(Model):
 
         shape = [relation_scores.size(0), relation_scores.size(1), relation_scores.size(2), 1]
         dummy_scores = relation_scores.new_zeros(*shape)
-
+        
         relation_scores = torch.cat([dummy_scores, relation_scores], -1)
+        
         # assign large negative score to dummy relation
         # print(relation_scores)
         mask = torch.zeros_like(relation_scores)
         mask[:,:,-1,1:] = 1
         mask[:,-1,:,1:] = 1
-        # print(mask.sum())
+        
         relation_scores.masked_fill_(mask.bool(), -1e20)
         # print(relation_scores)
         return relation_scores
@@ -335,6 +346,10 @@ class DocumentRelationExtractor(Model):
         scores_flat = relation_scores.view(-1, n_labels)
         # Need to add 1 so that the null label is 0, to line up with indices into prediction matrix.
         labels_flat = relation_labels.view(-1)
+        
         # Compute cross-entropy loss.
         loss = self._loss(scores_flat, labels_flat)
+        flat_scors = []
+        
+        
         return loss
