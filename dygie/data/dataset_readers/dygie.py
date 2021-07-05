@@ -50,7 +50,8 @@ class DyGIEReader(DatasetReader):
 
         def compute_sentence_starts(sentences):
             return np.cumsum([0] + [len(sent) for sent in sentences]).tolist()[:-1]
-        
+        def compute_sentence_ends(sentences):
+            return [idx -1 for idx in np.cumsum([len(sent) for sent in sentences])]
 
         file_path = cached_path(file_path)
 
@@ -110,7 +111,7 @@ class DyGIEReader(DatasetReader):
                     doc_text['sentences'] = new_sentences
 
                 doc_text['_sentence_starts'] = compute_sentence_starts(doc_text['sentences'])
-
+                sentence_ends = compute_sentence_ends(doc_text['sentences'])
                 # adjust sentence-based annotation into corresponding sentences
                 doc_text = self._adjust_annotation(doc_text)
                 
@@ -122,7 +123,7 @@ class DyGIEReader(DatasetReader):
                 # sent_lengths = [len(sent) for sent in doc_text['sentences']]
                 # while batch_start < num_sentences:
                 #     batch_end = self._compute_batch_end(batch_start, sent_lengths)
-                    chunk_start, chunk_end = doc_text['_sentence_starts'][batch_start], doc_text['_sentence_starts'][batch_end]
+                    chunk_start, chunk_end = doc_text['_sentence_starts'][batch_start], sentence_ends[batch_end]
                     sentence_chunk = self.form_sentence_chunk(doc_text, chunk_start, chunk_end, batch_start, batch_end)
                     sentence_chunk = self.normalize_chunk(sentence_chunk, chunk_start, chunk_end)
                     instance = self.text_to_instance(sentence_chunk)
@@ -299,6 +300,7 @@ class DyGIEReader(DatasetReader):
 
         for span, label in sent.cluster_dict.items():
             if self._too_long(span) or self._invalid(span):
+                print(f"Span {span} too long or invalid.")
                 continue
             ix = span_tuples.index(span)
             coref_labels[ix] = label
