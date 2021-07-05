@@ -50,7 +50,8 @@ class DyGIEReader(DatasetReader):
 
         def compute_sentence_starts(sentences):
             return np.cumsum([0] + [len(sent) for sent in sentences]).tolist()[:-1]
-        
+        def compute_sentence_ends(sentences):
+            return [idx -1 for idx in np.cumsum([len(sent) for sent in sentences])]
 
         file_path = cached_path(file_path)
 
@@ -110,7 +111,7 @@ class DyGIEReader(DatasetReader):
                     doc_text['sentences'] = new_sentences
 
                 doc_text['_sentence_starts'] = compute_sentence_starts(doc_text['sentences'])
-
+                sentence_ends = compute_sentence_ends(doc_text['sentences'])
                 # adjust sentence-based annotation into corresponding sentences
                 doc_text = self._adjust_annotation(doc_text)
                 

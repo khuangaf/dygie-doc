@@ -30,57 +30,40 @@ def convert(doc, is_gold):
         # entity_key = ' '.join(doc_tokens[longest_mention_span[0]:longest_mention_span[1]+1])
         entity_key = str(len(cluster_dict))
         entity_name_dict[entity_key] = ' '.join(doc_tokens[longest_mention_span[0]:longest_mention_span[1]+1])
-        cluster_dict[entity_key] = cluster
-        for span in cluster:
-            span2cluster[tuple(span)] = entity_key
-    
-    # gather mention that doesn't have any coref mention
-    for entities in doc[f'{prefix}ner']:
-        for mention in entities:
-            span = mention[:2]
-            # entity_key = ' '.join(doc_tokens[span[0]:span[1]+1])
+        
+        is_merged_entity = False
+        # merge mention with other entity if mention string is the same. do this for prediction only
+        if not is_gold and len(cluster)==1:
+            span = cluster[0]
             mention_string = ' '.join(doc_tokens[span[0]:span[1]+1])
-            
-            if tuple(span) not in span2cluster:
-                
-                entity_key = None
-                # merge mention with other entity if mention string is the same. do this for prediction only
-                if not is_gold:
-                    for other_span, other_cluster_id in span2cluster.items():
-                        other_mention_string = ' '.join(doc_tokens[other_span[0]:other_span[1]+1])
-                        if mention_string.lower() == other_mention_string.lower():
-                            entity_key = other_cluster_id
-                            break
-                # if no match string, assign new cluster id
-                if entity_key is None:
-                    entity_key = str(len(cluster_dict))
-                # If such entity string already exist, do not replace.
-                # TODO: we might come up a better way to handle this.
-                if entity_key not in cluster_dict:
-                    cluster_dict[entity_key] = [span]
+            for other_span, other_cluster_id in span2cluster.items():
+                other_mention_string = ' '.join(doc_tokens[other_span[0]:other_span[1]+1])
+                if mention_string.lower() == other_mention_string.lower():
+                    entity_key = other_cluster_id
+                    is_merged_entity = True
                     span2cluster[tuple(span)] = entity_key
-                    entity_name_dict[entity_key] = ' '.join(doc_tokens[span[0]:span[1]+1])
+                    cluster_dict[entity_key].append(span)        
+                    break
+        # only add treat this entity to span2cluster and cluster_dict if it is not merged.
+        if not is_merged_entity:
+            for span in cluster:
+                span2cluster[tuple(span)] = entity_key
+            cluster_dict[entity_key] = cluster
 
                 
     # convert relation to entity level
-    for relation in doc[f'{prefix}document_relations']:
-        span1 = tuple(relation[:2])
-        span2 = tuple(relation[2:4])
-        relation_type = relation[4]
-        
-        if span1 in span2cluster and span2 in span2cluster:
-            entity1 = span2cluster[span1]
-            entity2 = span2cluster[span2]
-            cluster_relation_count[(entity1, entity2)][relation_type] += 1
-            
-    
     entity_level_relations = []
-    for (entity1, entity2), relation_count in cluster_relation_count.items():
-        # get argmax
-        best_relation_type = max(relation_count.items(), key=operator.itemgetter(1))[0]
-        entity_level_relations.append([entity1, entity2, best_relation_type])
+    for relation in doc[f'{prefix}document_relations']:
+        idx1 = str(relation[0])
+        idx2 = str(relation[1])
+        relation_type = relation[2]
+        
+        if idx1 in cluster_dict and idx2 in cluster_dict:
+            entity_level_relations
+            entity_level_relations.append([idx1, idx2, relation_type])
 
-    # TODO: maybe should consider not to include entities that does not involve in any relation.
+    
+        
     
 
 

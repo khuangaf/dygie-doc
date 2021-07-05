@@ -22,5 +22,6 @@ template.DyGIE {
   encode_document: true,
   window_size: 15,
   gradient_checkpointing:true,
-  max_tokens_per_sentence:128
+  max_tokens_per_sentence:128,
+  num_epochs:150,
 }

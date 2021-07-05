@@ -140,7 +140,7 @@ class DocumentRelationExtractor(Model):
         output_dict = {"predictions": predictions}
 
         # Evaluate loss and F1 if labels were provided.
-        if self.training:
+        if predicted_coref is None:
             # Compute cross-entropy loss.
             # gold_relations = self._get_pruned_gold_relations(
             #     document_relation_labels, top_span_indices, top_span_mask)
