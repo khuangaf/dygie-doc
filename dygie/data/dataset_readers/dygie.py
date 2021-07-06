@@ -124,7 +124,7 @@ class DyGIEReader(DatasetReader):
                 # while batch_start < num_sentences:
                 #     batch_end = self._compute_batch_end(batch_start, sent_lengths)
                     # TODO (steeve): This is buggy!! should use sentence ends to compute chunk end.
-                    chunk_start, chunk_end = doc_text['_sentence_starts'][batch_start], doc_text['_sentence_starts'][batch_end]
+                    chunk_start, chunk_end = doc_text['_sentence_starts'][batch_start], sentence_ends[batch_end]
                     sentence_chunk = self.form_sentence_chunk(doc_text, chunk_start, chunk_end, batch_start, batch_end)
                     sentence_chunk = self.normalize_chunk(sentence_chunk, chunk_start, chunk_end)
                     instance = self.text_to_instance(sentence_chunk)

@@ -23,5 +23,5 @@ template.DyGIE {
   window_size: 15,
   gradient_checkpointing:true,
   max_tokens_per_sentence:128,
-  num_epochs:150,
+  num_epochs:50,
 }

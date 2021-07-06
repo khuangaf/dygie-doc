@@ -121,7 +121,8 @@ class DocumentRelationExtractor(Model):
                 assert mention_embeddings.size(1) == 1, (mention_embeddings.size(), doc_spans, span)
                 # print("mention_embeddings", mention_embeddings.shape)
                 this_entity_embeddings.append(mention_embeddings)
-            this_entity_embeddings = torch.cat(this_entity_embeddings, dim=0).max(dim=0)[0] # (1, emb_dim)
+            # this_entity_embeddings = torch.cat(this_entity_embeddings, dim=0).max(dim=0)[0] # (1, emb_dim)
+            this_entity_embeddings = torch.cat(this_entity_embeddings, dim=0).exp().sum(dim=0).log()
             entity_embeddings.append(this_entity_embeddings)
         
         # create dummy dimension 

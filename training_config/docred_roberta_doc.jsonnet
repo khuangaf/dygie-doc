@@ -23,6 +23,6 @@ template.DyGIE {
   window_size: 50,
   gradient_checkpointing:true,
   max_tokens_per_sentence:-1,
-  coref_prop: 2
+  coref_prop: 0
   
 }

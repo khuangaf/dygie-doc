@@ -24,23 +24,23 @@ def convert_doc_relations(labels, vertex_sets, sentences):
         relation_label = label['r']
         head_entity_idx = label['h']
         tail_entity_idx = label['t']
-        for head_mention in vertex_sets[head_entity_idx]:
-            for tail_mention in vertex_sets[tail_entity_idx]:
-                '''
-                A mention looks like this {'pos': [0, 4], 'type': 'ORG', 'sent_id': 0, 'name': 'Zest Airways, Inc.'}
-                '''
+        # for head_mention in vertex_sets[head_entity_idx]:
+        #     for tail_mention in vertex_sets[tail_entity_idx]:
+        #         '''
+        #         A mention looks like this {'pos': [0, 4], 'type': 'ORG', 'sent_id': 0, 'name': 'Zest Airways, Inc.'}
+        #         '''
                 
                 
-                span_1_sent_offset = sentence_starts[head_mention['sent_id']]
-                span_2_sent_offset = sentence_starts[tail_mention['sent_id']]
+        #         span_1_sent_offset = sentence_starts[head_mention['sent_id']]
+        #         span_2_sent_offset = sentence_starts[tail_mention['sent_id']]
 
-                span_1_start = head_mention['pos'][0] + span_1_sent_offset
-                span_1_end = head_mention['pos'][1] + span_1_sent_offset -1 
+        #         span_1_start = head_mention['pos'][0] + span_1_sent_offset
+        #         span_1_end = head_mention['pos'][1] + span_1_sent_offset -1 
                 
-                span_2_start = tail_mention['pos'][0] + span_2_sent_offset
-                span_2_end = tail_mention['pos'][1] + span_2_sent_offset -1                 
+        #         span_2_start = tail_mention['pos'][0] + span_2_sent_offset
+        #         span_2_end = tail_mention['pos'][1] + span_2_sent_offset -1                 
                 #[start_tok_1, end_tok_1, start_tok_2, end_tok_2, label]
-                doc_relations.append([span_1_start, span_1_end, span_2_start, span_2_end, relation_label])
+        doc_relations.append([head_entity_idx, tail_entity_idx, relation_label])
     return doc_relations
 
 def convert_ner(vertex_sets, sentences):
