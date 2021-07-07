@@ -88,7 +88,8 @@ def convert(doc, is_gold):
         'doc_key': doc['doc_key'],
         'clusters': cluster_dict,
         'relations': entity_level_relations,
-        'entity_names': entity_name_dict
+        'entity_names': entity_name_dict,
+        'sentences':doc['sentences'],
     }
 
 def main(args):

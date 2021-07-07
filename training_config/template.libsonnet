@@ -38,7 +38,8 @@
     max_tokens_per_sentence :: -1,
     encode_document :: false,
     gradient_checkpointing:: false,
-    coref_prop:: 0,
+    coref_prop :: 0,
+    num_epochs :: 50,
 
     ////////////////////
 
@@ -129,7 +130,7 @@
       checkpointer: {
         num_serialized_models_to_keep: 3,
       },
-      num_epochs: 50,
+      num_epochs: dygie.num_epochs,
       grad_norm: 5.0,
       cuda_device: dygie.cuda_device,
       validation_metric: validation_metrics[dygie.target_task],
