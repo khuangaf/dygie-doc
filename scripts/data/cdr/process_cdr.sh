@@ -26,21 +26,25 @@ mkdir $common_dir
 
 
 # # set path for necessary GENIA TAGGER library
-# export PYTHONPATH=$PWD/scripts/data/common/genia-tagger-py
-# export PATH=$PATH:$PWD/scripts/data/common/geniass/
-# for d in "Training" "Development" "Test";
-# do
-#     mkdir $intermediate_dir/${d}
-#     python $script_dir/process.py --input_file $raw_dir/CDR.Corpus.v010516/CDR_${d}Set.PubTator.txt \
-#                        --output_file $intermediate_dir/${d} \
-#                        --data CDR
+export PYTHONPATH=$PWD/scripts/data/common/genia-tagger-py
+export PATH=$PATH:$PWD/scripts/data/common/geniass/
+for d in "Training" "Development" "Test";
+do
+    mkdir $intermediate_dir/${d}
+    python $script_dir/process.py --input_file $raw_dir/CDR.Corpus.v010516/CDR_${d}Set.PubTator.txt \
+                       --output_file $intermediate_dir/${d} \
+                       --data CDR
 
-#     python $script_dir/filter_hypernyms.py --mesh_file $script_dir/2017MeshTree.txt \
-#                                 --input_file $intermediate_dir/${d}.data \
-#                                 --output_file $intermediate_dir/${d}_filter.data
+    python $script_dir/filter_hypernyms.py --mesh_file $script_dir/2017MeshTree.txt \
+                                --input_file $intermediate_dir/${d}.data \
+                                --output_file $intermediate_dir/${d}_filter.data
     
 # done
 
 python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Training_filter.data --output_path $processed_dir/train.json --split train
 python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Development_filter.data --output_path $processed_dir/dev.json --split dev
 python $script_dir/convert_cdr2dygie.py --input_path $intermediate_dir/Test_filter.data --output_path $processed_dir/test.json --split test
+
+python $script_dir/convert_cdr2entlvl.py --input_path $intermediate_dir/Training_filter.data --output_path $processed_dir/train.entlvl.json --split train
+python $script_dir/convert_cdr2entlvl.py --input_path $intermediate_dir/Development_filter.data --output_path $processed_dir/dev.entlvl.json --split dev
+python $script_dir/convert_cdr2entlvl.py --input_path $intermediate_dir/Test_filter.data --output_path $processed_dir/test.entlvl.json --split test

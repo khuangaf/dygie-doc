@@ -55,3 +55,7 @@ python $script_dir/split_gda.py --input_file $intermediate_dir/train+dev.data \
 python $script_dir/convert_gda2dygie.py --input_path $intermediate_dir/train.data --output_path $processed_dir/train.json --split train
 python $script_dir/convert_gda2dygie.py --input_path $intermediate_dir/dev.data --output_path $processed_dir/dev.json --split dev
 python $script_dir/convert_gda2dygie.py --input_path $intermediate_dir/test.data --output_path $processed_dir/test.json --split test
+
+python $script_dir/convert_gda2entlvl.py --input_path $intermediate_dir/train.data --output_path $processed_dir/train.entlvl.json --split train
+python $script_dir/convert_gda2entlvl.py --input_path $intermediate_dir/dev.data --output_path $processed_dir/dev.entlvl.json --split dev
+python $script_dir/convert_gda2entlvl.py --input_path $intermediate_dir/test.data --output_path $processed_dir/test.entlvl.json --split test
