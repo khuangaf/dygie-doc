@@ -1,4 +1,4 @@
-# DyGIE++ for End-to-end Document-level Relation Extraction
+# DyGIE-Doc
 
 This project extends [DyGIE++](https://github.com/dwadden/dygiepp), a general IE framework, to handle document-level IE tasks. Specifically, it establishes benchmarks for __end-to-end document-level relation extraction__ on three well-known datasets: DocRED, CDR, and GDA. A demo of this project can be found [here](#).
 
@@ -9,7 +9,6 @@ This project extends [DyGIE++](https://github.com/dwadden/dygiepp), a general IE
 - [Model evaluation](#evaluating-a-model)
 - [Pretrained models](#pretrained-models)
 - [Making predictions on existing datasets](#making-predictions-on-existing-datasets)
-- [Working with new datasets](#working-with-new-datasets)
 - [Contact](#contact)
 
 See the `doc` folder for documentation with more details on the [data](doc/data.md), [model implementation and debugging](doc/model.md), and [model configuration](doc/config.md).
@@ -77,31 +76,24 @@ If you want to use one of these pretrained models to make predictions on a new d
 
 To download all available models, run `scripts/pretrained/get_dygiepp_pretrained.sh`. Or, click on the links below to download only a single model.
 
-### Available models
+### Available models (coming soon)
 
 Below are links to the available models, followed by the name of the `dataset` the model was trained on.
 
-- [DocRED](#): `docred`
-- [CDR](#): `CDR`
-- [GDA](#): `GDA`
+- [DocRED](#): 
+- [CDR](#): 
+- [GDA](#): 
 
 
 ### Performance of pretrained models
 
-- DocRED
-  ```
-  
-  ```
+| Dataset      | Entity F1 | Relation F1 |
+| ----------- | ----------- | -----------|
+| DocRED     | 87.56       | 51.15 |
+| CDR   | 79.07        | 50.90|
+| GDA   | 83.63        |  76.88 |
 
-- CDR
-  ```
-  
-  ```
 
-- GDA
-  ```
-  
-  ```
 
 
 ## Making predictions
@@ -118,4 +110,4 @@ where `predictions/cdr.test.json` is the output from the `allennlp predict` comm
 
 # Contact
 
-For questions or problems with the code, create a GitHub issue (preferred) or email `dwadden@cs.washington.edu`.
+For questions or problems with the code, create a GitHub issue (preferred) or email `khhuang3@illinois.edu`.
