@@ -14,15 +14,15 @@ mkdir $processed_dir
 mkdir $common_dir
 
 
-# cd $common_dir
-# wget http://www.nactem.ac.uk/y-matsu/geniass/geniass-1.00.tar.gz && tar xvzf geniass-1.00.tar.gz
-# cd geniass/ && make && cd ..
+cd $common_dir
+wget http://www.nactem.ac.uk/y-matsu/geniass/geniass-1.00.tar.gz && tar xvzf geniass-1.00.tar.gz
+cd geniass/ && make && cd ..
 
-# # this forks contain the fixed Makefile
-# git clone https://github.com/khuangaf/genia-tagger-py
-# cd genia-tagger-py 
-# make
-# cd $pwd
+# this forks contain the fixed Makefile
+git clone https://github.com/khuangaf/genia-tagger-py
+cd genia-tagger-py 
+make
+cd $pwd
 
 
 # # set path for necessary GENIA TAGGER library
